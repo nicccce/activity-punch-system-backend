@@ -30,6 +30,7 @@ vendor
 .idea/
 .vscode/
 deploy/data/*
+deploy/otel/.data/*
 config.yaml
 
 # Log files
