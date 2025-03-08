@@ -23,3 +23,21 @@ go.work.sum
 
 # env file
 .env
+
+vendor
+*.prod.yaml
+
+.idea/
+.vscode/
+deploy/data/*
+config.yaml
+
+# Log files
+*/logs
+log
+
+# 忽略 internal/protected/ 目录下的所有文件
+internal/protected/*
+
+# 保留所有目录下的 .gitkeep 文件
+!**/.gitkeep

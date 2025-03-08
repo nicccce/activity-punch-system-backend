@@ -1,0 +1,23 @@
+# docker-compose.env.yaml
+# 如果你希望使用 Docker 运行各种依赖，可以使用这个文件
+
+version: "2.4"
+
+networks:
+  activity-punch-system-backend-net:
+    driver: bridge
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: activity-punch-system-backend-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345678
+      MYSQL_DATABASE: activity-punch-system-backend
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    privileged: true
+    restart: always
+    networks:
+      - activity-punch-system-backend-net

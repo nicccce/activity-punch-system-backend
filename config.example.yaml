@@ -1,0 +1,18 @@
+Host: "0.0.0.0"
+Port: "8080"
+Prefix: "/"
+Mode: "debug"
+
+OTel:
+    Enable: false
+    ServiceName: "activity-punch-system-backend"
+    AgentHost: "localhost"
+    AgentPort: "4318"
+
+Mysql:
+    Host: "127.0.0.1"
+    Port: "3306"
+    Username: "root"
+    Password: "12345678"
+    DBName: "activity-punch-system-backend"
+

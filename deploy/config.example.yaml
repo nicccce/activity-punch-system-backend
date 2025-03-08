@@ -1,0 +1,18 @@
+Host: "0.0.0.0"
+Port: "8080"
+Prefix: "/"
+Mode: "release"
+
+OTel:
+  Enable: true
+  ServiceName: "activity-punch-system-backend"
+  AgentHost: "tempo"
+  AgentPort: "4318"
+
+Mysql:
+  Host: "mysql"
+  Port: "3306"
+  Username: "root"
+  Password: "12345678"
+  DBName: "activity-punch-system-backend"
+
