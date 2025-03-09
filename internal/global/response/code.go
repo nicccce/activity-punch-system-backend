@@ -1,4 +1,4 @@
-package errs
+package response
 
 import "net/http"
 
@@ -9,9 +9,9 @@ var (
 
 // 400 Bad Request
 var (
-	ErrInvalidRequest  = newError(http.StatusBadRequest, "无效的请求")    // 400 Bad Request
-	ErrInvalidPassword = newError(http.StatusBadRequest, "账号或密码错误")  // 400 Bad Request
-	ErrTokenInvalid    = newError(http.StatusBadRequest, "无效的token") // 400 Bad Request
+	ErrInvalidRequest  = newError(http.StatusBadRequest, "无效的请求")     // 400 Bad Request
+	ErrInvalidPassword = newError(http.StatusBadRequest, "账号或密码错误") // 400 Bad Request
+	ErrTokenInvalid    = newError(http.StatusBadRequest, "无效的token")    // 400 Bad Request
 )
 
 // 401 Unauthorized
@@ -37,5 +37,5 @@ var (
 // 500 Internal Server Error
 var (
 	ErrServerInternal = newError(http.StatusInternalServerError, "服务器内部错误") // 500 Internal Server Error
-	ErrDatabase       = newError(http.StatusInternalServerError, "数据库错误")   // 500 Internal Server Error
+	ErrDatabase       = newError(http.StatusInternalServerError, "数据库错误")     // 500 Internal Server Error
 )

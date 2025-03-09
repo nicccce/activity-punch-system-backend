@@ -1,7 +1,7 @@
 package test
 
 import (
-	"activity-punch-system-backend/internal/global/errs"
+	"activity-punch-system-backend/internal/global/response"
 	"bytes"
 	"encoding/json"
 	"github.com/gin-gonic/gin"
@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func DoRequest(t *testing.T, handlerFunc gin.HandlerFunc, request any) (response errs.ResponseBody) {
+func DoRequest(t *testing.T, handlerFunc gin.HandlerFunc, request any) (response response.ResponseBody) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	requestBytes, err := json.Marshal(request)

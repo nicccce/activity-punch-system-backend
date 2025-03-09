@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"activity-punch-system-backend/internal/global/errs"
+	"activity-punch-system-backend/internal/global/response"
 	"bytes"
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel"
@@ -66,8 +66,8 @@ func Trace() gin.HandlerFunc {
 		c.Next()
 		status := c.Writer.Status()
 		span.SetAttributes(attribute.KeyValue{Key: "http.status_code", Value: attribute.Int64Value(int64(status))})
-		if err, exists := c.Get(errs.ErrorContextKey); exists {
-			e := err.(errs.Error)
+		if err, exists := c.Get(response.ErrorContextKey); exists {
+			e := err.(response.Error)
 			span.SetAttributes(
 				attribute.KeyValue{Key: "error.code", Value: attribute.Int64Value(int64(e.Code))},
 				attribute.KeyValue{Key: "error.message", Value: attribute.StringValue(e.Message)},

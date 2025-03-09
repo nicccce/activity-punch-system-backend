@@ -1,4 +1,4 @@
-package errs
+package response
 
 import (
 	"errors"
