@@ -1,14 +1,17 @@
 package ping
 
 import (
+	"activity-punch-system/internal/global/response"
+
 	"github.com/gin-gonic/gin"
 )
 
 func (p *ModulePing) InitRouter(r *gin.RouterGroup) {
 	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
+		result := map[string]interface{}{
 			"message": "pong",
-			"version": "v1",
-		})
+			"version": "1.0.0",
+		}
+		response.Success(c, result)
 	})
 }

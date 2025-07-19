@@ -45,3 +45,5 @@ internal/protected/*
 
 # 保留所有目录下的 .gitkeep 文件
 !**/.gitkeep
+
+docker-compose.yaml
