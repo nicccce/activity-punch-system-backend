@@ -26,5 +26,8 @@ func (p *ModuleProject) InitRouter(r *gin.RouterGroup) {
 
 		// 注册删除项目端点
 		projectGroup.DELETE("/delete/:id", DeleteProject)
+
+		// 还原删除项目端点
+		projectGroup.PUT("/restore/:id", RestoreProject)
 	}
 }

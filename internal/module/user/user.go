@@ -41,7 +41,7 @@ func Login(c *gin.Context) {
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
 		log.Warn("用户不存在", "student_id", req.StudentID)
-		response.Fail(c, response.ErrNotFound)
+		response.Fail(c, response.ErrNotFound.WithTips("用户不存在"))
 		return
 	case err != nil:
 		log.Error("数据库查询失败", "error", err, "student_id", req.StudentID)
@@ -131,7 +131,7 @@ func Register(c *gin.Context) {
 	// 验证密码强度
 	if err := validatePasswordStrength(req.Password); err != nil {
 		log.Warn("密码强度验证失败", "error", err, "student_id", req.StudentID)
-		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
+		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err).WithTips(err.Error()))
 		return
 	}
 

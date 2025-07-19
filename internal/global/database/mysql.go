@@ -17,6 +17,7 @@ var DB *gorm.DB
 // autoMigrateModels 定义需要自动迁移的模型列表
 var autoMigrateModels = []any{
 	&model.User{},
+	&model.Project{},
 	// 在这里添加其他模型
 }
 
