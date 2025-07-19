@@ -1,7 +1,8 @@
 package middleware
 
 import (
-	"activity-punch-system-backend/internal/global/response"
+	"activity-punch-system/internal/global/response"
+
 	"github.com/gin-gonic/gin"
 )
 

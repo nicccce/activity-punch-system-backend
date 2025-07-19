@@ -1,8 +1,10 @@
 package module
 
 import (
-	"activity-punch-system-backend/internal/module/ping"
-	"activity-punch-system-backend/internal/module/user"
+	"activity-punch-system/internal/module/ping"
+	"activity-punch-system/internal/module/project"
+	"activity-punch-system/internal/module/user"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -23,5 +25,6 @@ func init() {
 	registerModule([]Module{
 		&user.ModuleUser{},
 		&ping.ModulePing{},
+		&project.ModuleProject{},
 	})
 }

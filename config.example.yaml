@@ -1,18 +1,75 @@
+# 应用程序的主机地址，指定服务监听的 IP 地址
+# 例如 "0.0.0.0" 表示监听所有网络接口
 Host: "0.0.0.0"
+
+# 应用程序的端口号，指定服务监听的端口
+# 例如 "8080" 表示监听 8080 端口
 Port: "8080"
-Prefix: "/"
+
+# API 前缀，指定所有 API 端点的公共路径
+# 例如 "/" 表示根路径，"/api" 表示所有 API 以 /api 开头
+Prefix: "/admin/api/"
+
+# 运行模式，控制应用程序的行为
+# 可选值: "debug"（开发模式，启用详细日志并输出到控制台）或 "release"（生产模式，优化性能）
 Mode: "debug"
 
-OTel:
-    Enable: false
-    ServiceName: "activity-punch-system-backend"
-    AgentHost: "localhost"
-    AgentPort: "4318"
-
+# MySQL 数据库配置
 Mysql:
+    # 数据库主机地址，例如 "activity-punch-system-mysql" 表示 Docker 容器名
     Host: "127.0.0.1"
-    Port: "3306"
-    Username: "root"
-    Password: "12345678"
-    DBName: "activity-punch-system-backend"
 
+    # 数据库端口号，例如 "3306" 为 MySQL 默认端口
+    Port: "3309"
+
+    # 数据库用户名，用于身份验证
+    Username: "root"
+
+    # 数据库密码，用于身份验证
+    Password: "12345678"
+
+    # 数据库名称，指定连接的数据库
+    DBName: "activity-punch-system-db"
+
+# Redis 配置
+Redis:
+    # Redis 主机地址，例如 "activity-punch-system-redis" 表示 Docker 容器名
+    Host: "127.0.0.1"
+
+    # Redis 端口号，例如 "6379" 为 Redis 默认端口
+    Port: "6379"
+
+    # Redis 密码，用于身份验证（与 docker-compose 中一致）
+    Password: "12345678"
+
+    # Redis 数据库编号，0 为默认数据库
+    DB: 0
+
+# 日志配置
+log:
+    # 日志文件路径，仅在 release 模式下生效
+    # 例如 "/var/log/punch.log" 表示日志输出到该文件
+    file_path: /var/log/punch.log
+    
+    # 日志级别，控制输出日志的详细程度
+    # 可选值: "debug"（最详细）、"info"（默认）、"warn"（警告）、"error"（仅错误）
+    level: info
+    
+    # 日志文件最大大小（单位：MB），超过此大小将触发日志轮转
+    max_size: 100
+    
+    # 保留的旧日志文件数量，超过数量将删除最旧的日志文件
+    max_backups: 3
+    
+    # 日志文件保留天数，超过天数的文件将被删除
+    max_age: 28
+    
+    # 是否压缩旧日志文件，true 表示压缩以节省空间
+    compress: false
+
+jwt:
+    # 密钥，用于生成和验证 JWT
+    # 密钥长度必须为 32 字节（256 位）
+    # 注意：密钥应保密，不应暴露在代码中或配置文件中
+    access_secret: "12345678901234567890123456789012"
+    access_expire: 0

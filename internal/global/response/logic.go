@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// ErrorContextKey 是用于在 gin.Context 中存储错误对象的键
 const ErrorContextKey = "error"
 
 type Error struct {

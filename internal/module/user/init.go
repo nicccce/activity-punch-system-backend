@@ -1,8 +1,7 @@
 package user
 
 import (
-	"activity-punch-system-backend/internal/global/logger"
-	"activity-punch-system-backend/test"
+	"activity-punch-system/internal/global/logger"
 	"log/slog"
 )
 
@@ -15,12 +14,7 @@ func (u *ModuleUser) GetName() string {
 }
 
 func (u *ModuleUser) Init() {
-	switch test.IsTest() {
-	case false:
-		log = logger.New("User")
-	case true:
-		log = logger.Get()
-	}
+	log = logger.New("User")
 }
 
 func selfInit() {

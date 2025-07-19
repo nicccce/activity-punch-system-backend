@@ -1,22 +1,18 @@
 package server
 
 import (
-	"activity-punch-system-backend/config"
-	"activity-punch-system-backend/internal/global/database"
-	"activity-punch-system-backend/internal/global/httpclient"
-	"activity-punch-system-backend/internal/global/logger"
-	"activity-punch-system-backend/internal/global/middleware"
-	internalOtel "activity-punch-system-backend/internal/global/otel"
-	"activity-punch-system-backend/internal/module"
-	"activity-punch-system-backend/tools"
-	"context"
+	"activity-punch-system/config"
+	"activity-punch-system/internal/global/database"
+	"activity-punch-system/internal/global/httpclient"
+	"activity-punch-system/internal/global/logger"
+	"activity-punch-system/internal/global/middleware"
+	"activity-punch-system/internal/global/redis"
+	"activity-punch-system/internal/module"
+	"activity-punch-system/tools"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"log/slog"
-	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 var log *slog.Logger
@@ -24,21 +20,16 @@ var log *slog.Logger
 func Init() {
 	config.Init()
 	log = logger.New("Server")
+	log.Info(fmt.Sprintf("Init Config: %s", config.Get().Mode))
 
 	database.Init()
+	log.Info(fmt.Sprintf("Init Database: %s", config.Get().Mysql.Host))
+
+	redis.Init()
+	log.Info(fmt.Sprintf("Init Redis: %s", config.Get().Redis.Host))
 
 	httpclient.Init()
-
-	if config.Get().OTel.Enable {
-		log.Info("OTel Enabled")
-		internalOtel.Init()
-		// 确保程序退出时关闭 TracerProvider
-		defer func() {
-			if err := internalOtel.Shutdown(context.Background()); err != nil {
-				log.Error("Failed to shutdown TracerProvider: %v", err)
-			}
-		}()
-	}
+	log.Info(fmt.Sprintf("Init HttpClient: %s", config.Get().Host))
 
 	for _, m := range module.Modules {
 		log.Info(fmt.Sprintf("Init Module: %s", m.GetName()))
@@ -59,39 +50,10 @@ func Run() {
 	r.Use(middleware.Cors())
 	r.Use(middleware.Recovery())
 
-	if config.Get().OTel.Enable {
-		r.Use(middleware.Trace())
-	}
-
 	for _, m := range module.Modules {
 		log.Info(fmt.Sprintf("Init Router: %s", m.GetName()))
 		m.InitRouter(r.Group("/" + config.Get().Prefix))
 	}
 	err := r.Run(config.Get().Host + ":" + config.Get().Port)
 	tools.PanicOnErr(err)
-}
-
-func testSpan() {
-	// 获取 Tracer
-	tracer := otel.Tracer("test-tracer")
-
-	// 创建一个 Span
-	_, span := tracer.Start(context.Background(), "test-span")
-	defer span.End()
-
-	// 模拟一些业务逻辑
-	log.Info("Starting test span...")
-	time.Sleep(100 * time.Millisecond) // 模拟耗时操作
-	log.Info("Test span completed.")
-
-	// 添加一些属性
-	span.SetAttributes(
-		attribute.String("test.key", "test-value"),
-		attribute.Int("test.number", 42),
-	)
-
-	// 添加事件
-	span.AddEvent("test-event", trace.WithAttributes(
-		attribute.String("event.key", "event-value"),
-	))
 }

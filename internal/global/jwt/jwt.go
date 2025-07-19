@@ -1,9 +1,10 @@
 package jwt
 
 import (
-	"activity-punch-system-backend/config"
-	"github.com/golang-jwt/jwt"
+	"activity-punch-system/config"
 	"time"
+
+	"github.com/golang-jwt/jwt"
 )
 
 type Payload struct {
@@ -18,10 +19,16 @@ type Claims struct {
 
 // CreateToken 签发用户Token
 func CreateToken(payload Payload) string {
+	var expiresAt int64
+	if config.Get().JWT.AccessExpire > 0 {
+		expiresAt = time.Now().Add(time.Duration(config.Get().JWT.AccessExpire)).Unix()
+	} else {
+		expiresAt = 0
+	}
 	claims := Claims{
 		Payload: payload,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Duration(config.Get().JWT.AccessExpire)).Unix(),
+			ExpiresAt: expiresAt,
 			IssuedAt:  time.Now().Unix(),
 		},
 	}

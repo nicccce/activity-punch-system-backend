@@ -1,8 +1,9 @@
 package config
 
 import (
-	"activity-punch-system-backend/tools"
+	"activity-punch-system/tools"
 	"fmt"
+
 	"github.com/kelseyhightower/envconfig"
 	"github.com/spf13/viper"
 )

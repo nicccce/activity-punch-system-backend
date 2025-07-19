@@ -1,23 +1,34 @@
 # docker-compose.env.yaml
-# 如果你希望使用 Docker 运行各种依赖，可以使用这个文件
-
-version: "2.4"
+# 本地测试环境搭建
 
 networks:
-  activity-punch-system-backend-net:
+  activity-punch-system-net:
     driver: bridge
 
 services:
   mysql:
     image: mysql:8.0
-    container_name: activity-punch-system-backend-mysql
+    container_name: activity-punch-system-mysql
     environment:
       MYSQL_ROOT_PASSWORD: 12345678
-      MYSQL_DATABASE: activity-punch-system-backend
+      MYSQL_DATABASE: activity-punch-system-db
       TZ: Asia/Shanghai
     ports:
-      - "3306:3306"
+      - "3309:3306"
     privileged: true
     restart: always
     networks:
-      - activity-punch-system-backend-net
+      - activity-punch-system-net
+
+  redis:
+    image: redis:7.0
+    container_name: activity-punch-system-redis
+    command: --requirepass 12345678  # 设置密码，需与配置文件一致
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "6379:6379"
+    privileged: true
+    restart: always
+    networks:
+      - activity-punch-system-net

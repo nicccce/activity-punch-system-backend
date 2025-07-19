@@ -1,6 +1,6 @@
 package main
 
-import "activity-punch-system-backend/cmd/server"
+import "activity-punch-system/cmd/server"
 
 func main() {
 	server.Init()

@@ -1,11 +1,11 @@
 package database
 
 import (
-	"activity-punch-system-backend/config"
-	"activity-punch-system-backend/internal/global/otel"
-	"activity-punch-system-backend/internal/model"
-	"activity-punch-system-backend/tools"
+	"activity-punch-system/config"
+	"activity-punch-system/internal/model"
+	"activity-punch-system/tools"
 	"fmt"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -13,6 +13,12 @@ import (
 )
 
 var DB *gorm.DB
+
+// autoMigrateModels 定义需要自动迁移的模型列表
+var autoMigrateModels = []any{
+	&model.User{},
+	// 在这里添加其他模型
+}
 
 func Init() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
@@ -22,9 +28,8 @@ func Init() {
 		config.Get().Mysql.Port,
 		config.Get().Mysql.DBName,
 	)
-
 	gormConfig := &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{SingularTable: true}, // 使用单数表名
+		NamingStrategy: schema.NamingStrategy{SingularTable: true}, // 还是单数表名好
 	}
 
 	switch config.Get().Mode {
@@ -37,6 +42,7 @@ func Init() {
 	db, err := gorm.Open(mysql.Open(dsn), gormConfig)
 	tools.PanicOnErr(err)
 	DB = db
-	tools.PanicOnErr(DB.Use(otel.GetGormPlugin()))
-	tools.PanicOnErr(DB.AutoMigrate(model.User{}))
+
+	// 使用模型列表进行自动迁移
+	tools.PanicOnErr(DB.AutoMigrate(autoMigrateModels...))
 }

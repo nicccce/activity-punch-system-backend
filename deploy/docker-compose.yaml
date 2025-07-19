@@ -1,12 +1,11 @@
-version: "2.4"
-
 networks:
   activity-punch-system-backend-net:
     driver: bridge
 
 services:
   app:
-    image: 666/activity-punch-system-backend:latest
+    build: ..
+#    image: 666/activity-punch-system-backend:latest
     container_name: activity-punch-system-backend-app
     volumes:
       - ./config.yaml:/app/config.yaml
@@ -37,12 +36,12 @@ services:
     networks:
       - activity-punch-system-backend-net
 
-  watchtower:
-    image: containrrr/watchtower
-    container_name: activity-punch-system-backend-watchtower
-    command: --interval 5
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # 需要将 Docker 的 sock 映射进去以控制 Docker
-    restart: always
-    networks:
-      - activity-punch-system-backend-net
+#  watchtower:
+#    image: containrrr/watchtower
+#    container_name: activity-punch-system-backend-watchtower
+#    command: --interval 5
+#    volumes:
+#      - /var/run/docker.sock:/var/run/docker.sock # 需要将 Docker 的 sock 映射进去以控制 Docker
+#    restart: always
+#    networks:
+#      - activity-punch-system-backend-net
