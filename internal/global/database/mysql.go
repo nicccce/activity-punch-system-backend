@@ -19,6 +19,7 @@ var autoMigrateModels = []any{
 	&model.User{},
 	&model.Activity{},
 	&model.Project{},
+	&model.Column{},
 	// 在这里添加其他模型
 }
 

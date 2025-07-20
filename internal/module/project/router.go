@@ -14,6 +14,9 @@ func (p *ModuleProject) InitRouter(r *gin.RouterGroup) {
 	{
 		// 注册获取项目列表端点
 		activityGroup.GET("/list", ListProjects)
+
+		// 注册获取单个项目端点
+		activityGroup.GET("/get/:id", GetProject)
 	}
 
 	activityGroup.Use(middleware.Auth(1))

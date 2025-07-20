@@ -40,6 +40,18 @@ type ProjectUpdateReq struct {
 	Avatar      *string `json:"avatar"`      // 项目封面URL，可选
 }
 
+// ProjectResponse 定义项目响应结构体（不包含空的Activity字段）
+type ProjectResponse struct {
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	OwnerID     string `json:"owner_id"`
+	ActivityID  uint   `json:"activity_id"`
+	StartDate   int64  `json:"start_date"`
+	EndDate     int64  `json:"end_date"`
+	Avatar      string `json:"avatar"`
+}
+
 // CreateProject 处理创建项目请求
 func CreateProject(c *gin.Context) {
 	// 获取认证信息
@@ -60,6 +72,30 @@ func CreateProject(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Error("绑定创建项目请求失败", "error", err)
 		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
+		return
+	}
+
+	// 检查对应的活动是否存在且未被删除
+	var activity model.Activity
+	if err := database.DB.First(&activity, "id = ?", req.ActivityID).Error; err != nil {
+		log.Warn("关联的活动不存在或已被删除", "activity_id", req.ActivityID)
+		response.Fail(c, response.ErrNotFound.WithTips("关联的活动不存在或已被删除"))
+		return
+	}
+
+	// 验证项目的时间范围是否在活动时间范围内
+	if req.StartDate < activity.StartDate || req.EndDate > activity.EndDate {
+		log.Warn("项目时间范围超出活动范围",
+			"project_start", req.StartDate, "project_end", req.EndDate,
+			"activity_start", activity.StartDate, "activity_end", activity.EndDate)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("项目的开始和结束时间必须在活动时间范围内"))
+		return
+	}
+
+	// 验证项目的开始时间不能晚于结束时间
+	if req.StartDate >= req.EndDate {
+		log.Warn("项目开始时间不能晚于或等于结束时间", "start_date", req.StartDate, "end_date", req.EndDate)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("项目开始时间必须早于结束时间"))
 		return
 	}
 
@@ -123,6 +159,48 @@ func UpdateProject(c *gin.Context) {
 		log.Error("查询项目失败", "error", err)
 		response.Fail(c, response.ErrNotFound.WithTips("项目未找到"))
 		return
+	}
+
+	// 如果要更新ActivityID或时间字段，需要验证
+	if req.ActivityID != nil || req.StartDate != nil || req.EndDate != nil {
+		// 获取活动信息（如果更新了ActivityID，使用新的；否则使用原有的）
+		activityID := project.ActivityID
+		if req.ActivityID != nil {
+			activityID = *req.ActivityID
+		}
+
+		var activity model.Activity
+		if err := database.DB.First(&activity, "id = ?", activityID).Error; err != nil {
+			log.Warn("关联的活动不存在或已被删除", "activity_id", activityID)
+			response.Fail(c, response.ErrNotFound.WithTips("关联的活动不存在或已被删除"))
+			return
+		}
+
+		// 计算更新后的时间范围
+		startDate := project.StartDate
+		endDate := project.EndDate
+		if req.StartDate != nil {
+			startDate = *req.StartDate
+		}
+		if req.EndDate != nil {
+			endDate = *req.EndDate
+		}
+
+		// 验证项目的时间范围是否在活动时间范围内
+		if startDate < activity.StartDate || endDate > activity.EndDate {
+			log.Warn("项目时间范围超出活动范围",
+				"project_start", startDate, "project_end", endDate,
+				"activity_start", activity.StartDate, "activity_end", activity.EndDate)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("项目的开始和结束时间必须在活动时间范围内"))
+			return
+		}
+
+		// 验证项目的开始时间不能晚于结束时间
+		if startDate >= endDate {
+			log.Warn("项目开始时间不能晚于或等于结束时间", "start_date", startDate, "end_date", endDate)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("项目开始时间必须早于结束时间"))
+			return
+		}
 	}
 
 	if req.Name != nil {
@@ -252,12 +330,96 @@ func ListProjects(c *gin.Context) {
 	StudentID := userPayload.StudentID
 
 	var projects []model.Project
-	if err := database.DB.Where("owner_id = ?", StudentID).Find(&projects).Error; err != nil {
+	// 查询项目时，同时确保关联的活动未被删除
+	if err := database.DB.Joins("JOIN activity ON activity.id = project.activity_id AND activity.deleted_at IS NULL").
+		Where("project.owner_id = ?", StudentID).
+		Find(&projects).Error; err != nil {
 		log.Error("查询项目列表失败", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 
+	// 转换为响应格式，排除空的Activity字段
+	var projectResponses []ProjectResponse
+	for _, p := range projects {
+		projectResponses = append(projectResponses, ProjectResponse{
+			ID:          p.ID,
+			Name:        p.Name,
+			Description: p.Description,
+			OwnerID:     p.OwnerID,
+			ActivityID:  p.ActivityID,
+			StartDate:   p.StartDate,
+			EndDate:     p.EndDate,
+			Avatar:      p.Avatar,
+		})
+	}
+
 	log.Info("查询项目列表成功", "count", len(projects), "owner_id", StudentID)
-	response.Success(c, projects)
+	response.Success(c, projectResponses)
+}
+
+// ColumnInProject 栏目信息结构体（用于项目详情返回）
+type ColumnInProject struct {
+	ID     uint   `json:"id"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar"`
+}
+
+type GetProjectResponse struct {
+	ID          uint              `json:"id"`
+	Name        string            `json:"name"`
+	Avatar      string            `json:"avatar"`
+	Description string            `json:"description"`
+	StartDate   int64             `json:"start_date"`
+	EndDate     int64             `json:"end_date"`
+	Columns     []ColumnInProject `json:"columns"`
+}
+
+func GetProject(c *gin.Context) {
+
+	// 获取项目ID
+	id := c.Param("id")
+	if id == "" {
+		log.Error("项目ID不能为空")
+		response.Fail(c, response.ErrInvalidRequest.WithTips("项目ID不能为空"))
+		return
+	}
+
+	var project model.Project
+	if err := database.DB.Where("id = ?", id).First(&project).Error; err != nil {
+		log.Error("查询项目失败", "error", err)
+		response.Fail(c, response.ErrNotFound.WithTips("项目未找到"))
+		return
+	}
+
+	// 查询该项目下的所有栏目
+	var columns []model.Column
+	if err := database.DB.Where("project_id = ?", project.ID).Find(&columns).Error; err != nil {
+		log.Error("查询项目栏目失败", "error", err)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 构建栏目响应数据
+	var columnResponses []ColumnInProject
+	for _, col := range columns {
+		columnResponses = append(columnResponses, ColumnInProject{
+			ID:     col.ID,
+			Name:   col.Name,
+			Avatar: col.Avatar,
+		})
+	}
+
+	// 构建项目详情响应
+	projectResponse := GetProjectResponse{
+		ID:          project.ID,
+		Name:        project.Name,
+		Avatar:      project.Avatar,
+		Description: project.Description,
+		StartDate:   project.StartDate,
+		EndDate:     project.EndDate,
+		Columns:     columnResponses,
+	}
+
+	response.Success(c, projectResponse)
 }

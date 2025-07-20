@@ -2,6 +2,7 @@ package module
 
 import (
 	"activity-punch-system/internal/module/activity"
+	"activity-punch-system/internal/module/column"
 	"activity-punch-system/internal/module/ping"
 	"activity-punch-system/internal/module/project"
 	"activity-punch-system/internal/module/user"
@@ -28,5 +29,6 @@ func init() {
 		&ping.ModulePing{},
 		&activity.ModuleActivity{},
 		&project.ModuleProject{},
+		&column.ModuleColumn{},
 	})
 }
