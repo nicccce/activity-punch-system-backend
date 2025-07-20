@@ -1,6 +1,7 @@
 package module
 
 import (
+	"activity-punch-system/internal/module/activity"
 	"activity-punch-system/internal/module/ping"
 	"activity-punch-system/internal/module/project"
 	"activity-punch-system/internal/module/user"
@@ -25,6 +26,7 @@ func init() {
 	registerModule([]Module{
 		&user.ModuleUser{},
 		&ping.ModulePing{},
+		&activity.ModuleActivity{},
 		&project.ModuleProject{},
 	})
 }
