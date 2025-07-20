@@ -365,3 +365,58 @@ func RestoreActivity(c *gin.Context) {
 	)
 	response.Success(c)
 }
+
+type ProjectInActivity struct {
+	ID     uint   `json:"id"`     // 项目ID
+	Name   string `json:"name"`   // 项目名称
+	Avatar string `json:"avatar"` // 项目封面URL
+}
+
+// GetActivity 获取单个项目详情
+func GetActivity(c *gin.Context) {
+	// 获取项目ID
+	id := c.Param("id")
+	if id == "" {
+		log.Error("项目ID不能为空")
+		response.Fail(c, response.ErrInvalidRequest.WithTips("项目ID不能为空"))
+		return
+	}
+
+	var activity model.Activity
+	// 查询项目详情
+	if err := database.DB.Preload("User").First(&activity, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("项目不存在", "id", id)
+			response.Fail(c, response.ErrNotFound.WithTips("项目不存在"))
+			return
+		}
+		log.Error("查询项目失败", "error", err, "id", id)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 查询关联的所有项目信息
+	var projectsInActivity []ProjectInActivity
+	if err := database.DB.Model(&model.Project{}).
+		Select("ID, name, avatar").
+		Where("activity_id = ?", activity.ID).
+		Find(&projectsInActivity).Error; err != nil {
+		log.Error("查询项目关联信息失败", "error", err, "activity_id", activity.ID)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 构建响应数据
+	result := gin.H{
+		"activity": activity,
+		"projects": projectsInActivity,
+	}
+
+	log.Info("获取项目详情成功",
+		"id", activity.ID,
+		"name", activity.Name,
+		"projects_count", len(projectsInActivity),
+	)
+
+	response.Success(c, result)
+}
