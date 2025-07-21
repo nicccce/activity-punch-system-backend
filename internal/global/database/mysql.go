@@ -20,6 +20,7 @@ var autoMigrateModels = []any{
 	&model.Activity{},
 	&model.Project{},
 	&model.Column{},
+	&model.Punch{},
 	// 在这里添加其他模型
 }
 
