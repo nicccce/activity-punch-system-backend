@@ -7,17 +7,17 @@ import (
 
 var log *slog.Logger
 
-type ModuleActivity struct{}
+type ModulePunch struct{}
 
-func (p *ModuleActivity) GetName() string {
+func (p *ModulePunch) GetName() string {
 	return "Punch"
 }
 
-func (u *ModuleActivity) Init() {
+func (u *ModulePunch) Init() {
 	log = logger.New("Punch")
 }
 
 func selfInit() {
-	u := &ModuleActivity{}
+	u := &ModulePunch{}
 	u.Init()
 }
