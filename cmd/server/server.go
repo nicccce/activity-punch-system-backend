@@ -50,6 +50,8 @@ func Run() {
 	r.Use(middleware.Cors())
 	r.Use(middleware.Recovery())
 
+	r.Static("/static/punch", "./upload/punch")
+
 	for _, m := range module.Modules {
 		log.Info(fmt.Sprintf("Init Router: %s", m.GetName()))
 		m.InitRouter(r.Group("/" + config.Get().Prefix))
