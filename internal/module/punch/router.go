@@ -12,17 +12,25 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 
 	punchGroup.Use(middleware.Auth(1))
 	{
-		// 注册审核打卡记录端点
+		// 审核打卡记录端点
 		punchGroup.POST("/review", ReviewPunch)
+		// 获取待审核打卡列表端点
+		punchGroup.GET("/pending-list", GetPendingPunchList)
 	}
 
 	punchGroup.Use(middleware.Auth(0))
 	{
-
-		// 注册插入打卡记录端点
+		// 插入打卡记录端点
 		punchGroup.POST("/insert", InsertPunch)
-		// 注册获取打卡记录端点
+		// 获取打卡记录端点
 		punchGroup.GET("/:column_id", GetPunchesByColumn)
-		// 其他打卡相关路由可在此注册
+		// 删除打卡记录端点
+		punchGroup.DELETE("/delete/:id", DeletePunch)
+		// 修改打卡记录端点
+		punchGroup.PUT("/update/:id", UpdatePunch)
+		// 查询自己所有打卡记录端点
+		punchGroup.GET("/my-list", GetMyPunchList)
+		// 获取最近参与栏目、项目、活动端点
+		punchGroup.GET("/recent-participation", GetRecentParticipation)
 	}
 }

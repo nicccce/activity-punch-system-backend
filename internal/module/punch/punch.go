@@ -14,11 +14,6 @@ import (
 )
 
 // PunchInsertRequest 定义插入打卡记录的请求体结构
-// @Description 插入打卡记录请求体
-// @Param column_id int 打卡栏目ID
-// @Param content string 打卡内容
-// @Param images []*multipart.FileHeader 图片数组
-// @example multipart form-data: column_id=1, content=xxx, images=[file1, file2]
 type PunchInsertRequest struct {
 	ColumnID int                     `form:"column_id" binding:"required"`
 	Content  string                  `form:"content" binding:"required"`
@@ -56,16 +51,8 @@ func InsertPunch(c *gin.Context) {
 	}
 	startDateStr := strconv.FormatInt(column.StartDate, 10)
 	endDateStr := strconv.FormatInt(column.EndDate, 10)
-	startDate, err := time.Parse("20060102", startDateStr)
-	if err != nil {
-		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目开始时间格式错误"))
-		return
-	}
-	endDate, err := time.Parse("20060102", endDateStr)
-	if err != nil {
-		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目结束时间格式错误"))
-		return
-	}
+	startDate, _ := time.Parse("20060102", startDateStr)
+	endDate, _ := time.Parse("20060102", endDateStr)
 	currentTime := time.Now()
 	if currentTime.Before(startDate) || currentTime.After(endDate) {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在栏目时间范围内，无法打卡"))
@@ -200,13 +187,13 @@ func GetPunchesByColumn(c *gin.Context) {
 		})
 	}
 
-	// 查询该栏目下未被删除的不同 user_id 数量
+	// 查询该栏目下不同 user_id 数量
 	var userCount int64
-	database.DB.Model(&model.Punch{}).Where("column_id = ? AND deleted_at IS NULL", columnIDStr).Distinct("user_id").Count(&userCount)
+	database.DB.Model(&model.Punch{}).Where("column_id = ? ", columnIDStr).Distinct("user_id").Count(&userCount)
 
-	// 查询当前用户未被删除的打卡数量
+	// 查询当前用户打卡数量
 	var myCount int64
-	database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? AND deleted_at IS NULL", columnIDStr, studentID).Count(&myCount)
+	database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? ", columnIDStr, studentID).Count(&myCount)
 
 	response.Success(c, gin.H{
 		"records":    result,
@@ -215,7 +202,7 @@ func GetPunchesByColumn(c *gin.Context) {
 	})
 }
 
-// DeletePunch 删除自己拥有的打卡记录（只能删除自己的且时间在栏目范围内）
+// DeletePunch 删除自己拥有的打卡记录
 func DeletePunch(c *gin.Context) {
 	punchID := c.Param("id")
 	if punchID == "" {
@@ -246,19 +233,11 @@ func DeletePunch(c *gin.Context) {
 		return
 	}
 
-	// 判断打卡时间是否在栏目时间范围内（startdate/enddate为int64，需转为string再转为date）
+	// 判断打卡时间是否在栏目时间范围内
 	startDateStr := strconv.FormatInt(column.StartDate, 10)
 	endDateStr := strconv.FormatInt(column.EndDate, 10)
-	startDate, err := time.Parse("20060102", startDateStr)
-	if err != nil {
-		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目开始时间格式错误"))
-		return
-	}
-	endDate, err := time.Parse("20060102", endDateStr)
-	if err != nil {
-		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目结束时间格式错误"))
-		return
-	}
+	startDate, _ := time.Parse("20060102", startDateStr)
+	endDate, _ := time.Parse("20060102", endDateStr)
 	if punch.CreatedAt.Before(startDate) || punch.CreatedAt.After(endDate) {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡时间不在栏目时间范围内，无法删除"))
 		return
@@ -270,4 +249,177 @@ func DeletePunch(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"deleted": true})
+}
+
+// PunchUpdateRequest 修改打卡请求体
+type PunchUpdateRequest struct {
+	ColumnID int                     `form:"column_id" binding:"required"`
+	Content  string                  `form:"content" binding:"required"`
+	Images   []*multipart.FileHeader `form:"images" binding:"omitempty"`
+}
+
+// UpdatePunch 修改打卡记录
+func UpdatePunch(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡ID不能为空"))
+		return
+	}
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	studentID := userPayload.StudentID
+
+	var req PunchUpdateRequest
+	if err := c.ShouldBind(&req); err != nil {
+		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
+		return
+	}
+
+	var punch model.Punch
+	if err := database.DB.First(&punch, "id = ? AND user_id = ?", idStr, studentID).Error; err != nil {
+		response.Fail(c, response.ErrNotFound.WithTips("打卡记录不存在或无权限"))
+		return
+	}
+
+	var column model.Column
+	if err := database.DB.First(&column, "id = ?", req.ColumnID).Error; err != nil {
+		response.Fail(c, response.ErrNotFound.WithTips("栏目不存在"))
+		return
+	}
+
+	startDateStr := strconv.FormatInt(column.StartDate, 10)
+	endDateStr := strconv.FormatInt(column.EndDate, 10)
+	startDate, _ := time.Parse("20060102", startDateStr)
+	endDate, _ := time.Parse("20060102", endDateStr)
+	if punch.CreatedAt.Before(startDate) || punch.CreatedAt.After(endDate) {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡时间不在栏目时间范围内，无法修改"))
+		return
+	}
+
+	punch.Content = req.Content
+	punch.ColumnID = req.ColumnID
+	if err := database.DB.Save(&punch).Error; err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 可选：处理图片（如需覆盖原图片，可先删除原图片再插入新图片）
+	if len(req.Images) > 0 {
+		// 删除原图片
+		database.DB.Where("punch_id = ?", punch.ID).Delete(&model.PunchImg{})
+		pictureBed := pictureBed.NewPictureBed("./upload/punch", "/static/punch")
+		for _, fileHeader := range req.Images {
+			imgUrl, err := pictureBed.SaveImage(fileHeader)
+			if err != nil {
+				log.Error("图片保存失败", "error", err)
+				continue
+			}
+			punchImg := &model.PunchImg{
+				PunchID:  punch.ID,
+				ColumnID: req.ColumnID,
+				ImgURL:   imgUrl,
+			}
+			database.DB.Create(punchImg)
+		}
+	}
+
+	response.Success(c, punch)
+}
+
+// 获取待审核打卡列表
+func GetPendingPunchList(c *gin.Context) {
+	var punches []model.Punch
+	if err := database.DB.Where("status = 0").Order("created_at desc").Find(&punches).Error; err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+	response.Success(c, punches)
+}
+
+// 查询自己所有打卡记录
+func GetMyPunchList(c *gin.Context) {
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	studentID := userPayload.StudentID
+
+	var punches []model.Punch
+	if err := database.DB.Where("user_id = ?", studentID).Order("created_at desc").Find(&punches).Error; err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+	response.Success(c, punches)
+}
+
+// 获取最近参与栏目、项目、活动
+func GetRecentParticipation(c *gin.Context) {
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	studentID := userPayload.StudentID
+
+	var punches []model.Punch
+	database.DB.Where("user_id = ?", studentID).Order("created_at desc").Find(&punches)
+
+	columnMap := make(map[int]bool)
+	projectMap := make(map[int]bool)
+	activityMap := make(map[uint]bool)
+	var recentColumns []model.Column
+	var recentProjects []model.Project
+	var recentActivities []model.Activity
+
+	for _, punch := range punches {
+		// 1. 查找栏目
+		if !columnMap[punch.ColumnID] {
+			var col model.Column
+			if err := database.DB.First(&col, "id = ?", punch.ColumnID).Error; err == nil {
+				recentColumns = append(recentColumns, col)
+				columnMap[punch.ColumnID] = true
+				// 2. 查找项目
+				if !projectMap[int(col.ProjectID)] && col.ProjectID != 0 {
+					var proj model.Project
+					if err := database.DB.First(&proj, "id = ?", col.ProjectID).Error; err == nil {
+						recentProjects = append(recentProjects, proj)
+						projectMap[int(col.ProjectID)] = true
+						// 3. 查找活动
+						if !activityMap[proj.ActivityID] && proj.ActivityID != 0 {
+							var act model.Activity
+							if err := database.DB.First(&act, "id = ?", proj.ActivityID).Error; err == nil {
+								recentActivities = append(recentActivities, act)
+								activityMap[proj.ActivityID] = true
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	response.Success(c, gin.H{
+		"columns":    recentColumns,
+		"projects":   recentProjects,
+		"activities": recentActivities,
+	})
 }
