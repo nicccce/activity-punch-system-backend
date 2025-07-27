@@ -9,6 +9,7 @@ import (
 func (p *ModuleProject) InitRouter(r *gin.RouterGroup) {
 	// 定义项目模块的路由组，所有项目相关端点以 /project 为前缀
 	activityGroup := r.Group("/project")
+	adminGroup := r.Group("/project")
 
 	activityGroup.Use(middleware.Auth(0))
 	{
@@ -19,18 +20,18 @@ func (p *ModuleProject) InitRouter(r *gin.RouterGroup) {
 		activityGroup.GET("/get/:id", GetProject)
 	}
 
-	activityGroup.Use(middleware.Auth(1))
+	adminGroup.Use(middleware.Auth(1))
 	{
 		// 注册创建项目端点
-		activityGroup.POST("/create", CreateProject)
+		adminGroup.POST("/create", CreateProject)
 
 		// 注册更新项目端点
-		activityGroup.PUT("/update/:id", UpdateProject)
+		adminGroup.PUT("/update/:id", UpdateProject)
 
 		// 注册删除项目端点
-		activityGroup.DELETE("/delete/:id", DeleteProject)
+		adminGroup.DELETE("/delete/:id", DeleteProject)
 
 		// 还原删除项目端点
-		activityGroup.PUT("/restore/:id", RestoreProject)
+		adminGroup.PUT("/restore/:id", RestoreProject)
 	}
 }
