@@ -22,6 +22,7 @@ var autoMigrateModels = []any{
 	&model.Column{},
 	&model.Punch{},
 	&model.PunchImg{},
+	&model.Star{},
 	// 在这里添加其他模型
 }
 

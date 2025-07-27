@@ -9,6 +9,7 @@ import (
 func (c *ModuleColumn) InitRouter(r *gin.RouterGroup) {
 	// 定义列模块的路由组，所有列相关端点以 /column 为前缀
 	activityGroup := r.Group("/column")
+	adminGroup := r.Group("/column")
 
 	activityGroup.Use(middleware.Auth(0))
 	{
@@ -18,18 +19,18 @@ func (c *ModuleColumn) InitRouter(r *gin.RouterGroup) {
 		// 注册获取单个列端点
 		activityGroup.GET("/get/:id", GetColumn)
 	}
-	activityGroup.Use(middleware.Auth(1))
+	adminGroup.Use(middleware.Auth(1))
 	{
 		// 注册创建列端点
-		activityGroup.POST("/create", CreateColumn)
+		adminGroup.POST("/create", CreateColumn)
 
 		// 注册更新列端点
-		activityGroup.PUT("/update/:id", UpdateColumn)
+		adminGroup.PUT("/update/:id", UpdateColumn)
 
 		// 注册删除列端点
-		activityGroup.DELETE("/delete/:id", DeleteColumn)
+		adminGroup.DELETE("/delete/:id", DeleteColumn)
 
 		// 还原删除列端点
-		activityGroup.PUT("/restore/:id", RestoreColumn)
+		adminGroup.PUT("/restore/:id", RestoreColumn)
 	}
 }
