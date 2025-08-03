@@ -8,14 +8,21 @@ const (
 )
 
 type Config struct {
-	Host   string `envconfig:"HOST"`
-	Port   string `envconfig:"PORT"`
-	Prefix string `envconfig:"PREFIX"`
-	Mode   Mode   `envconfig:"MODE"`
-	Mysql  Mysql
-	Redis  Redis
-	JWT    JWT
-	Log    Log
+	Host     string `envconfig:"HOST"`
+	Port     string `envconfig:"PORT"`
+	Domain   string `envconfig:"DOMAIN"`
+	Prefix   string `envconfig:"PREFIX"`
+	Mode     Mode   `envconfig:"MODE"`
+	Mysql    Mysql
+	Redis    Redis
+	JWT      JWT
+	Log      Log
+	SduLogin SduLogin `envconfig:"SDU_LOGIN"`
+}
+
+type SduLogin struct {
+	Mode   string `envconfig:"MODE"`
+	CasKey string `envconfig:"CAS_KEY"`
 }
 
 type Mysql struct {
