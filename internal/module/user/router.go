@@ -2,6 +2,7 @@ package user
 
 import (
 	"activity-punch-system/internal/global/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,7 +23,7 @@ func (u *ModuleUser) InitRouter(r *gin.RouterGroup) {
 
 	userGroup.Use(middleware.Auth(1))
 	{
-		// 注册获取用户信息端点，处理获取用户信息请求
+		// 注册获取用户信息端点，处理修改密码请求
 		userGroup.POST("/change-password", ChangePassword)
 	}
 

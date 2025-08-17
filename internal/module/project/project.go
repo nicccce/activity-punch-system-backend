@@ -360,9 +360,10 @@ func ListProjects(c *gin.Context) {
 
 // ColumnInProject 栏目信息结构体（用于项目详情返回）
 type ColumnInProject struct {
-	ID     uint   `json:"id"`
-	Name   string `json:"name"`
-	Avatar string `json:"avatar"`
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	Avatar      string `json:"avatar"`
+	Description string `json:"description"` // 栏目描述
 }
 
 type GetProjectResponse struct {
@@ -404,9 +405,10 @@ func GetProject(c *gin.Context) {
 	var columnResponses []ColumnInProject
 	for _, col := range columns {
 		columnResponses = append(columnResponses, ColumnInProject{
-			ID:     col.ID,
-			Name:   col.Name,
-			Avatar: col.Avatar,
+			ID:          col.ID,
+			Name:        col.Name,
+			Avatar:      col.Avatar,
+			Description: col.Description,
 		})
 	}
 

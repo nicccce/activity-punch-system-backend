@@ -367,9 +367,10 @@ func RestoreActivity(c *gin.Context) {
 }
 
 type ProjectInActivity struct {
-	ID     uint   `json:"id"`     // 项目ID
-	Name   string `json:"name"`   // 项目名称
-	Avatar string `json:"avatar"` // 项目封面URL
+	ID          uint   `json:"id"`          // 项目ID
+	Name        string `json:"name"`        // 项目名称
+	Avatar      string `json:"avatar"`      // 项目封面URL
+	Description string `json:"description"` // 项目描述
 }
 
 // GetActivity 获取单个项目详情
@@ -398,7 +399,7 @@ func GetActivity(c *gin.Context) {
 	// 查询关联的所有项目信息
 	var projectsInActivity []ProjectInActivity
 	if err := database.DB.Model(&model.Project{}).
-		Select("ID, name, avatar").
+		Select("ID, name, avatar, description").
 		Where("activity_id = ?", activity.ID).
 		Find(&projectsInActivity).Error; err != nil {
 		log.Error("查询项目关联信息失败", "error", err, "activity_id", activity.ID)
