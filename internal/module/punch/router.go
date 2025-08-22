@@ -8,16 +8,16 @@ import (
 
 func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 	// 定义打卡模块的路由组，所有打卡相关端点以 /punch 为前缀
-	punchGroup := r.Group("/punch")
-
-	adminGroup := punchGroup.Use(middleware.Auth(1))
+	commonGroup := r.Group("/punch")
+	adminGroup := r.Group("/punch")
+	adminGroup.Use(middleware.Auth(1))
 	{
 		// 审核打卡记录端点
 		adminGroup.POST("/review", ReviewPunch)
 		adminGroup.GET("/pending-list", GetPendingPunchList)
 	}
 
-	commonGroup := punchGroup.Use(middleware.Auth(0))
+	commonGroup.Use(middleware.Auth(0))
 	{
 
 		// 插入打卡记录端点

@@ -8,16 +8,16 @@ import (
 
 func (c *ModuleColumn) InitRouter(r *gin.RouterGroup) {
 	// 定义栏目模块的路由组，所有栏目相关端点以 /column 为前缀
-	activityGroup := r.Group("/column")
+	columnGroup := r.Group("/column")
 	adminGroup := r.Group("/column")
 
-	activityGroup.Use(middleware.Auth(0))
+	columnGroup.Use(middleware.Auth(0))
 	{
 		// 注册获取栏目栏目端点
-		activityGroup.GET("/list", ListColumns)
+		columnGroup.GET("/list", ListColumns)
 
 		// 注册获取单个栏目端点
-		activityGroup.GET("/get/:id", GetColumn)
+		columnGroup.GET("/get/:id", GetColumn)
 	}
 	adminGroup.Use(middleware.Auth(1))
 	{

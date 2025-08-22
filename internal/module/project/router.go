@@ -8,16 +8,16 @@ import (
 
 func (p *ModuleProject) InitRouter(r *gin.RouterGroup) {
 	// 定义项目模块的路由组，所有项目相关端点以 /project 为前缀
-	activityGroup := r.Group("/project")
+	projectGroup := r.Group("/project")
 	adminGroup := r.Group("/project")
 
-	activityGroup.Use(middleware.Auth(0))
+	projectGroup.Use(middleware.Auth(0))
 	{
 		// 注册获取项目列表端点
-		activityGroup.GET("/list", ListProjects)
+		projectGroup.GET("/list", ListProjects)
 
 		// 注册获取单个项目端点
-		activityGroup.GET("/get/:id", GetProject)
+		projectGroup.GET("/get/:id", GetProject)
 	}
 
 	adminGroup.Use(middleware.Auth(1))
