@@ -79,7 +79,7 @@ jwt:
     access_expire: 0
 
 #配置山大统一认证
-sdu_login:
+SduLogin:
     #通过cas或者spider或者default账号密码登录
     mode: "default"
     #用于cas登录的key
