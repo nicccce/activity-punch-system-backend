@@ -50,3 +50,4 @@ docker-compose.yaml
 
 internal/protected/*
 !internal/protected/.gitkeep
+*.png
