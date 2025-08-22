@@ -12,7 +12,7 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 
 	adminGroup := punchGroup.Use(middleware.Auth(1))
 	{
-		// 注册审核打卡记录端点
+		// 审核打卡记录端点
 		adminGroup.POST("/review", ReviewPunch)
 		adminGroup.GET("/pending-list", GetPendingPunchList)
 	}
@@ -20,10 +20,11 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 	commonGroup := punchGroup.Use(middleware.Auth(0))
 	{
 
-		// 注册插入打卡记录端点
+		// 插入打卡记录端点
 		commonGroup.POST("/insert", InsertPunch)
-		// 注册获取打卡记录端点
+		// 获取打卡记录端点
 		commonGroup.GET("/:column_id", GetPunchesByColumn)
+
 		// 删除打卡记录端点
 		commonGroup.DELETE("/delete/:id", DeletePunch)
 		// 修改打卡记录端点

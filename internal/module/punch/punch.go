@@ -3,10 +3,8 @@ package punch
 import (
 	"activity-punch-system/internal/global/database"
 	"activity-punch-system/internal/global/jwt"
-	"activity-punch-system/internal/global/pictureBed"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
-	"mime/multipart"
 	"strconv"
 	"time"
 
@@ -15,9 +13,9 @@ import (
 
 // PunchInsertRequest 定义插入打卡记录的请求体结构
 type PunchInsertRequest struct {
-	ColumnID int                     `form:"column_id" binding:"required"`
-	Content  string                  `form:"content" binding:"required"`
-	Images   []*multipart.FileHeader `form:"images" binding:"omitempty"`
+	ColumnID int      `json:"column_id" binding:"required"`
+	Content  string   `json:"content" binding:"required"`
+	Images   []string `json:"images" binding:"omitempty"`
 }
 
 // InsertPunch 插入一条打卡记录
@@ -35,9 +33,9 @@ func InsertPunch(c *gin.Context) {
 	}
 	StudentID := userPayload.StudentID
 
-	// 绑定 multipart form-data
+	// 绑定 JSON 数据
 	var req PunchInsertRequest
-	if err := c.ShouldBind(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		log.Error("绑定打卡请求失败", "error", err)
 		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
 		return
@@ -72,21 +70,18 @@ func InsertPunch(c *gin.Context) {
 		return
 	}
 
-	// 处理图片保存和punch_img插入
+	// 处理图片URL保存到punch_img表
 	if len(req.Images) > 0 {
-		pictureBed := pictureBed.NewPictureBed("./upload/punch", "/static/punch")
-		for _, fileHeader := range req.Images {
-			imgUrl, err := pictureBed.SaveImage(fileHeader)
-			if err != nil {
-				log.Error("图片保存失败", "error", err)
-				continue
-			}
+		for _, imgUrl := range req.Images {
 			punchImg := &model.PunchImg{
-				PunchID:  punch.ID, // 新增 punch_id 字段
+				PunchID:  punch.ID,
 				ColumnID: req.ColumnID,
 				ImgURL:   imgUrl,
 			}
-			database.DB.Create(punchImg)
+			if err := database.DB.Create(punchImg).Error; err != nil {
+				log.Error("插入打卡图片记录失败", "error", err)
+				continue
+			}
 		}
 	}
 
@@ -253,9 +248,9 @@ func DeletePunch(c *gin.Context) {
 
 // PunchUpdateRequest 修改打卡请求体
 type PunchUpdateRequest struct {
-	ColumnID int                     `form:"column_id" binding:"required"`
-	Content  string                  `form:"content" binding:"required"`
-	Images   []*multipart.FileHeader `form:"images" binding:"omitempty"`
+	ColumnID int      `json:"column_id" binding:"required"`
+	Content  string   `json:"content" binding:"required"`
+	Images   []string `json:"images" binding:"omitempty"`
 }
 
 // UpdatePunch 修改打卡记录
@@ -278,7 +273,7 @@ func UpdatePunch(c *gin.Context) {
 	studentID := userPayload.StudentID
 
 	var req PunchUpdateRequest
-	if err := c.ShouldBind(&req); err != nil {
+	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
 		return
 	}
@@ -315,13 +310,7 @@ func UpdatePunch(c *gin.Context) {
 	if len(req.Images) > 0 {
 		// 删除原图片
 		database.DB.Where("punch_id = ?", punch.ID).Delete(&model.PunchImg{})
-		pictureBed := pictureBed.NewPictureBed("./upload/punch", "/static/punch")
-		for _, fileHeader := range req.Images {
-			imgUrl, err := pictureBed.SaveImage(fileHeader)
-			if err != nil {
-				log.Error("图片保存失败", "error", err)
-				continue
-			}
+		for _, imgUrl := range req.Images {
 			punchImg := &model.PunchImg{
 				PunchID:  punch.ID,
 				ColumnID: req.ColumnID,
