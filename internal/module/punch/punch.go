@@ -183,6 +183,16 @@ func GetPunchesByColumn(c *gin.Context) {
 		return
 	}
 
+	// 今日是否已打卡
+	today := time.Now().Truncate(24 * time.Hour) // 今日零点时间
+	hasPunchedToday := false
+	for _, punch := range punches {
+		if punch.CreatedAt.After(today) || punch.CreatedAt.Equal(today) {
+			hasPunchedToday = true
+			break
+		}
+	}
+
 	// 查询每条打卡记录的图片
 
 	var result []PunchWithImgs
@@ -208,9 +218,10 @@ func GetPunchesByColumn(c *gin.Context) {
 	database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? ", columnIDStr, studentID).Count(&myCount)
 
 	response.Success(c, gin.H{
-		"records":    result,
-		"user_count": userCount,
-		"my_count":   myCount,
+		"records":       result,
+		"user_count":    userCount,
+		"my_count":      myCount,
+		"punched_today": hasPunchedToday,
 	})
 }
 
