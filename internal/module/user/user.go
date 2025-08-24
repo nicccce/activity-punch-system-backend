@@ -360,6 +360,7 @@ type updateUserReq struct {
 	Avatar   string `json:"avatar"`
 	College  string `json:"college"`
 	Major    string `json:"major"`
+	Grade    string `json:"grade"`
 }
 
 func updateUser(c *gin.Context) {
@@ -399,6 +400,9 @@ func updateUser(c *gin.Context) {
 	}
 	if req.Major != "" {
 		user.Major = req.Major
+	}
+	if req.Grade != "" {
+		user.Grade = req.Grade
 	}
 	if err := database.DB.Save(&user).Error; err != nil {
 		log.Error("更新失败", "error", err, "student_id", userPayload.StudentID)
