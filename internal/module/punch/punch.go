@@ -46,6 +46,30 @@ func InsertPunch(c *gin.Context) {
 		return
 	}
 
+	// 验证栏目ID不能为空或小于等于0
+	if req.ColumnID <= 0 {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目ID不能为空"))
+		return
+	}
+	today := time.Now().Truncate(24 * time.Hour)
+	count := int64(0)
+	if err := database.DB.Model(&model.Punch{}).Where("column_id = ? AND created_at >= ?", req.ColumnID, today).Count(&count).Error; err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 查询栏目每日打卡限制
+	var columnLimit int64
+	if err := database.DB.Model(&model.Column{}).Select("daily_punch_limit").Where("id = ?", req.ColumnID).Scan(&columnLimit).Error; err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	if count >= columnLimit {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("今日已打卡，无法重复打卡"))
+		return
+	}
+
 	// 获取栏目时间范围，判断是否允许打卡
 	var column model.Column
 	if err := database.DB.First(&column, "id = ?", req.ColumnID).Error; err != nil {
@@ -57,9 +81,42 @@ func InsertPunch(c *gin.Context) {
 	startDate, _ := time.Parse("20060102", startDateStr)
 	endDate, _ := time.Parse("20060102", endDateStr)
 	currentTime := time.Now()
+
+	// 判断当前日期是否在栏目时间范围内
 	if currentTime.Before(startDate) || currentTime.After(endDate) {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在栏目时间范围内，无法打卡"))
 		return
+	}
+
+	// 判断当前时间是否在每日打卡时间范围内
+	if column.StartTime != "" && column.EndTime != "" {
+		now := time.Now()
+		currentTimeStr := now.Format("15:04") // HH:MM 格式
+
+		// 解析每日开始和结束时间
+		startTime, err1 := time.Parse("15:04", column.StartTime)
+		endTime, err2 := time.Parse("15:04", column.EndTime)
+		currentParsed, err3 := time.Parse("15:04", currentTimeStr)
+
+		if err1 != nil || err2 != nil || err3 != nil {
+			response.Fail(c, response.ErrInvalidRequest.WithTips("时间格式错误"))
+			return
+		}
+
+		// 处理跨天情况（例如 22:00 - 06:00）
+		if endTime.Before(startTime) {
+			// 跨天情况：当前时间在开始时间之后或结束时间之前
+			if currentParsed.Before(startTime) && currentParsed.After(endTime) {
+				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在打卡时间范围内，无法打卡"))
+				return
+			}
+		} else {
+			// 不跨天情况：当前时间必须在开始和结束时间之间
+			if currentParsed.Before(startTime) || currentParsed.After(endTime) {
+				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在打卡时间范围内，无法打卡"))
+				return
+			}
+		}
 	}
 
 	punch := &model.Punch{
@@ -495,17 +552,17 @@ func GetRecentParticipation(c *gin.Context) {
 	})
 }
 
-func GetTodayPunchCount(r *gin.Context) {
-	columnId := r.Param("column_id")
+func GetTodayPunchCount(c *gin.Context) {
+	columnId := c.Param("column_id")
 	if columnId == "" {
-		response.Fail(r, response.ErrInvalidRequest.WithTips("栏目ID不能为空"))
+		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目ID不能为空"))
 		return
 	}
 	var count int64
 	today := time.Now().Truncate(24 * time.Hour) // 今日零点时间
 	if err := database.DB.Model(&model.Punch{}).Where("column_id = ? AND created_at >= ?", columnId, today).Count(&count).Error; err != nil {
-		response.Fail(r, response.ErrDatabase.WithOrigin(err))
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
-	response.Success(r, gin.H{"today_punch_count": count})
+	response.Success(c, gin.H{"today_punch_count": count})
 }
