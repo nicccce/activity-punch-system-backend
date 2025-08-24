@@ -18,6 +18,11 @@ type PunchInsertRequest struct {
 	Images   []string `json:"images" binding:"omitempty"`
 }
 
+type PunchWithImgs struct {
+	model.Punch
+	Imgs []string `json:"imgs"`
+}
+
 // InsertPunch 插入一条打卡记录
 func InsertPunch(c *gin.Context) {
 	// 获取认证信息
@@ -137,7 +142,18 @@ func ReviewPunch(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, punch)
+	// 查询图片数组
+	var imgs []model.PunchImg
+	database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+	imgUrls := make([]string, 0, len(imgs))
+	for _, img := range imgs {
+		imgUrls = append(imgUrls, img.ImgURL)
+	}
+
+	response.Success(c, PunchWithImgs{
+		Punch: punch,
+		Imgs:  imgUrls,
+	})
 }
 
 // GetPunchesByColumn 查询某栏目下所有打卡记录
@@ -167,18 +183,19 @@ func GetPunchesByColumn(c *gin.Context) {
 		return
 	}
 
-	// 查询每条打卡记录的图片（左连接）
-	type PunchWithImg struct {
-		model.Punch
-		ImgURL string `json:"img_url"`
-	}
-	var result []PunchWithImg
+	// 查询每条打卡记录的图片
+
+	var result []PunchWithImgs
 	for _, punch := range punches {
-		var img model.PunchImg
-		database.DB.Where("punch_id = ?", punch.ID).First(&img)
-		result = append(result, PunchWithImg{
-			Punch:  punch,
-			ImgURL: img.ImgURL, // 没有图片则为空
+		var imgs []model.PunchImg
+		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+		imgUrls := make([]string, 0, len(imgs))
+		for _, img := range imgs {
+			imgUrls = append(imgUrls, img.ImgURL)
+		}
+		result = append(result, PunchWithImgs{
+			Punch: punch,
+			Imgs:  imgUrls,
 		})
 	}
 
@@ -299,6 +316,7 @@ func UpdatePunch(c *gin.Context) {
 		return
 	}
 
+	// 修改打卡内容
 	punch.Content = req.Content
 	punch.ColumnID = req.ColumnID
 	if err := database.DB.Save(&punch).Error; err != nil {
@@ -320,7 +338,21 @@ func UpdatePunch(c *gin.Context) {
 		}
 	}
 
-	response.Success(c, punch)
+	// 查询图片数组
+	var imgs []model.PunchImg
+	database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+	imgUrls := make([]string, 0, len(imgs))
+	for _, img := range imgs {
+		imgUrls = append(imgUrls, img.ImgURL)
+	}
+
+	response.Success(c, struct {
+		model.Punch
+		Imgs []string `json:"imgs"`
+	}{
+		Punch: punch,
+		Imgs:  imgUrls,
+	})
 }
 
 // 获取待审核打卡列表
@@ -330,7 +362,20 @@ func GetPendingPunchList(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
-	response.Success(c, punches)
+	var result []PunchWithImgs
+	for _, punch := range punches {
+		var imgs []model.PunchImg
+		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+		imgUrls := make([]string, 0, len(imgs))
+		for _, img := range imgs {
+			imgUrls = append(imgUrls, img.ImgURL)
+		}
+		result = append(result, PunchWithImgs{
+			Punch: punch,
+			Imgs:  imgUrls,
+		})
+	}
+	response.Success(c, result)
 }
 
 // 查询自己所有打卡记录
@@ -352,7 +397,20 @@ func GetMyPunchList(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
-	response.Success(c, punches)
+	var result []PunchWithImgs
+	for _, punch := range punches {
+		var imgs []model.PunchImg
+		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+		imgUrls := make([]string, 0, len(imgs))
+		for _, img := range imgs {
+			imgUrls = append(imgUrls, img.ImgURL)
+		}
+		result = append(result, PunchWithImgs{
+			Punch: punch,
+			Imgs:  imgUrls,
+		})
+	}
+	response.Success(c, result)
 }
 
 // 获取最近参与栏目、项目、活动
@@ -378,8 +436,20 @@ func GetRecentParticipation(c *gin.Context) {
 	var recentColumns []model.Column
 	var recentProjects []model.Project
 	var recentActivities []model.Activity
+	var punchResults []PunchWithImgs
 
 	for _, punch := range punches {
+		// 查图片
+		var imgs []model.PunchImg
+		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+		imgUrls := make([]string, 0, len(imgs))
+		for _, img := range imgs {
+			imgUrls = append(imgUrls, img.ImgURL)
+		}
+		punchResults = append(punchResults, PunchWithImgs{
+			Punch: punch,
+			Imgs:  imgUrls,
+		})
 		// 1. 查找栏目
 		if !columnMap[punch.ColumnID] {
 			var col model.Column
@@ -407,6 +477,7 @@ func GetRecentParticipation(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
+		"punches":    punchResults,
 		"columns":    recentColumns,
 		"projects":   recentProjects,
 		"activities": recentActivities,
