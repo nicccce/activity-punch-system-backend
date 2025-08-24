@@ -5,6 +5,7 @@ import (
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -295,6 +296,16 @@ func GetColumn(c *gin.Context) {
 		return
 	}
 
+	// 获取认证信息
+	payload, exists := c.Get("payload")
+	var studentID string
+	if exists {
+		userPayload, ok := payload.(*jwt.Claims)
+		if ok {
+			studentID = userPayload.StudentID
+		}
+	}
+
 	var column model.Column
 	// 查询栏目详情，确保关联的项目和活动都未被删除
 	if err := database.DB.Joins("JOIN project ON project.id = column.project_id AND project.deleted_at IS NULL").
@@ -306,7 +317,39 @@ func GetColumn(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, column)
+	// 构建响应数据
+	responseData := gin.H{
+		"id":                column.ID,
+		"name":              column.Name,
+		"description":       column.Description,
+		"owner_id":          column.OwnerID,
+		"project_id":        column.ProjectID,
+		"start_date":        column.StartDate,
+		"end_date":          column.EndDate,
+		"avatar":            column.Avatar,
+		"daily_punch_limit": column.DailyPunchLimit,
+		"point_earned":      column.PointEarned,
+		"start_time":        column.StartTime,
+		"end_time":          column.EndTime,
+		"created_at":        column.CreatedAt.Unix(),
+		"updated_at":        column.UpdatedAt.Unix(),
+		"project":           column.Project,
+		"user":              column.User,
+		"punched_today":     false,
+		"today_punch_count": 0,
+	}
+
+	// 如果用户已登录，查询今日打卡状态
+	if studentID != "" {
+		today := time.Now().Truncate(24 * time.Hour)
+		var todayPunchCount int64
+		database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? AND created_at >= ?", id, studentID, today).Count(&todayPunchCount)
+
+		responseData["punched_today"] = todayPunchCount > 0
+		responseData["today_punch_count"] = todayPunchCount
+	}
+
+	response.Success(c, responseData)
 }
 
 // ListColumns 处理获取栏目列表请求
