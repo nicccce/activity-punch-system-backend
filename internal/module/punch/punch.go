@@ -425,13 +425,24 @@ func UpdatePunch(c *gin.Context) {
 }
 
 // 获取待审核打卡列表
+type PunchWithImgsAndUser struct {
+	Punch model.Punch `json:"punch"`
+	Imgs  []string    `json:"imgs"`
+	User  model.User  `json:"user"`
+}
+
 func GetPendingPunchList(c *gin.Context) {
+	columnIDStr := c.Query("column_id")
 	var punches []model.Punch
-	if err := database.DB.Where("status = 0").Order("created_at desc").Find(&punches).Error; err != nil {
+	query := database.DB.Where("status = 0")
+	if columnIDStr != "" {
+		query = query.Where("column_id = ?", columnIDStr)
+	}
+	if err := query.Order("created_at desc").Find(&punches).Error; err != nil {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
-	var result []PunchWithImgs
+	var result []PunchWithImgsAndUser
 	for _, punch := range punches {
 		var imgs []model.PunchImg
 		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
@@ -439,9 +450,12 @@ func GetPendingPunchList(c *gin.Context) {
 		for _, img := range imgs {
 			imgUrls = append(imgUrls, img.ImgURL)
 		}
-		result = append(result, PunchWithImgs{
+		var user model.User
+		database.DB.First(&user, "id = ?", punch.UserID)
+		result = append(result, PunchWithImgsAndUser{
 			Punch: punch,
 			Imgs:  imgUrls,
+			User:  user,
 		})
 	}
 	response.Success(c, result)
