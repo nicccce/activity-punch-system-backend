@@ -360,10 +360,14 @@ func ListProjects(c *gin.Context) {
 
 // ColumnInProject 栏目信息结构体（用于项目详情返回）
 type ColumnInProject struct {
-	ID          uint   `json:"id"`
-	Name        string `json:"name"`
-	Avatar      string `json:"avatar"`
-	Description string `json:"description"` // 栏目描述
+	ID              uint   `json:"id"`
+	Name            string `json:"name"`
+	Avatar          string `json:"avatar"`
+	Description     string `json:"description"`       // 栏目描述
+	DailyPunchLimit int    `json:"daily_punch_limit"` // 每日可打卡次数，0表示不限次数
+	PointEarned     int    `json:"point_earned"`      // 每次打卡可获得的积分
+	StartTime       string `json:"start_time"`        // 每日打卡开始时间，格式为 "HH:MM"
+	EndTime         string `json:"end_time"`          // 每日打卡结束时间，格式为 "HH:MM"
 }
 
 type GetProjectResponse struct {
@@ -405,10 +409,14 @@ func GetProject(c *gin.Context) {
 	var columnResponses []ColumnInProject
 	for _, col := range columns {
 		columnResponses = append(columnResponses, ColumnInProject{
-			ID:          col.ID,
-			Name:        col.Name,
-			Avatar:      col.Avatar,
-			Description: col.Description,
+			ID:              col.ID,
+			Name:            col.Name,
+			Avatar:          col.Avatar,
+			Description:     col.Description,
+			DailyPunchLimit: col.DailyPunchLimit,
+			PointEarned:     col.PointEarned,
+			StartTime:       col.StartTime,
+			EndTime:         col.EndTime,
 		})
 	}
 
