@@ -8,11 +8,12 @@ import (
 	"activity-punch-system/internal/model"
 	"activity-punch-system/internal/protected/sduLogin"
 	"activity-punch-system/tools"
+	"net/http"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
-	"net/http"
-	"strings"
 )
 
 // User 定义登录和注册请求的结构体
@@ -329,4 +330,27 @@ func ChangePassword(c *gin.Context) {
 
 	// 返回成功响应
 	response.Success(c, nil)
+}
+
+func getMe(c *gin.Context) {
+	// 获取认证信息
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	// 查询用户
+	var user model.User
+	err := database.DB.Where("student_id = ?", userPayload.StudentID).First(&user).Error
+	if err != nil {
+		log.Error("查询用户失败", "error", err, "student_id", userPayload.StudentID)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+	response.Success(c, user)
 }
