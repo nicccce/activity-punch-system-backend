@@ -24,6 +24,8 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 		commonGroup.POST("/insert", InsertPunch)
 		// 获取打卡记录端点
 		commonGroup.GET("/:column_id", GetPunchesByColumn)
+		// 获取今日栏目打卡人数端点
+		commonGroup.GET("/today/:column_id", GetTodayPunchCount)
 
 		// 删除打卡记录端点
 		commonGroup.DELETE("/delete/:id", DeletePunch)

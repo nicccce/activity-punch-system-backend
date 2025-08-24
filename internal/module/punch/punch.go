@@ -494,3 +494,18 @@ func GetRecentParticipation(c *gin.Context) {
 		"activities": recentActivities,
 	})
 }
+
+func GetTodayPunchCount(r *gin.Context) {
+	columnId := r.Param("column_id")
+	if columnId == "" {
+		response.Fail(r, response.ErrInvalidRequest.WithTips("栏目ID不能为空"))
+		return
+	}
+	var count int64
+	today := time.Now().Truncate(24 * time.Hour) // 今日零点时间
+	if err := database.DB.Model(&model.Punch{}).Where("column_id = ? AND created_at >= ?", columnId, today).Count(&count).Error; err != nil {
+		response.Fail(r, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+	response.Success(r, gin.H{"today_punch_count": count})
+}
