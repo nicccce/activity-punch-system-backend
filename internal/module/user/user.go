@@ -354,3 +354,56 @@ func getMe(c *gin.Context) {
 	}
 	response.Success(c, user)
 }
+
+type updateUserReq struct {
+	NickName string `json:"nick_name"`
+	Avatar   string `json:"avatar"`
+	College  string `json:"college"`
+	Major    string `json:"major"`
+}
+
+func updateUser(c *gin.Context) {
+	// 获取认证信息
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	// 查询用户
+	var user model.User
+	err := database.DB.Where("student_id = ?", userPayload.StudentID).First(&user).Error
+	if err != nil {
+		log.Error("查询用户失败", "error", err, "student_id", userPayload.StudentID)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+	var req updateUserReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Error("绑定更新用户请求失败", "error", err, "student_id", userPayload.StudentID)
+		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
+		return
+	}
+	if req.NickName != "" {
+		user.NickName = req.NickName
+	}
+	if req.Avatar != "" {
+		user.Avatar = req.Avatar
+	}
+	if req.College != "" {
+		user.College = req.College
+	}
+	if req.Major != "" {
+		user.Major = req.Major
+	}
+	if err := database.DB.Save(&user).Error; err != nil {
+		log.Error("更新失败", "error", err, "student_id", userPayload.StudentID)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+	response.Success(c, nil)
+}

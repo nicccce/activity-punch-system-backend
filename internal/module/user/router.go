@@ -26,7 +26,7 @@ func (u *ModuleUser) InitRouter(r *gin.RouterGroup) {
 		// 注册获取用户信息端点，处理修改密码请求
 		userGroup.POST("/change-password", ChangePassword)
 		userGroup.GET("/profile", getMe)
-		userGroup.PUT("/update")
+		userGroup.PUT("/update", updateUser)
 	}
 
 }
