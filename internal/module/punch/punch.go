@@ -480,7 +480,16 @@ func GetMyPunchList(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
-	var result []PunchWithImgs
+
+	type MyPunchWithInfo struct {
+		Punch        model.Punch `json:"punch"`
+		Imgs         []string    `json:"imgs"`
+		ColumnName   string      `json:"column_name"`
+		ProjectName  string      `json:"project_name"`
+		ActivityName string      `json:"activity_name"`
+	}
+
+	var result []MyPunchWithInfo
 	for _, punch := range punches {
 		var imgs []model.PunchImg
 		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
@@ -488,9 +497,29 @@ func GetMyPunchList(c *gin.Context) {
 		for _, img := range imgs {
 			imgUrls = append(imgUrls, img.ImgURL)
 		}
-		result = append(result, PunchWithImgs{
-			Punch: punch,
-			Imgs:  imgUrls,
+		var col model.Column
+		var colName, projName, actName string
+		if err := database.DB.First(&col, "id = ?", punch.ColumnID).Error; err == nil {
+			colName = col.Name
+			if col.ProjectID != 0 {
+				var proj model.Project
+				if err := database.DB.First(&proj, "id = ?", col.ProjectID).Error; err == nil {
+					projName = proj.Name
+					if proj.ActivityID != 0 {
+						var act model.Activity
+						if err := database.DB.First(&act, "id = ?", proj.ActivityID).Error; err == nil {
+							actName = act.Name
+						}
+					}
+				}
+			}
+		}
+		result = append(result, MyPunchWithInfo{
+			Punch:        punch,
+			Imgs:         imgUrls,
+			ColumnName:   colName,
+			ProjectName:  projName,
+			ActivityName: actName,
 		})
 	}
 	response.Success(c, result)
