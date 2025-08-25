@@ -426,12 +426,29 @@ func UpdatePunch(c *gin.Context) {
 
 // 获取待审核打卡列表
 type PunchWithImgsAndUser struct {
-	Punch model.Punch `json:"punch"`
-	Imgs  []string    `json:"imgs"`
-	User  model.User  `json:"user"`
+	Punch    model.Punch `json:"punch"`
+	Imgs     []string    `json:"imgs"`
+	NickName string      `json:"nick_name"`
 }
 
 func GetPendingPunchList(c *gin.Context) {
+	// 获取认证信息
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	// 只允许管理员或有权限的用户查看
+	if userPayload.RoleID < 1 { // 假设1为审核权限
+		response.Fail(c, response.ErrForbidden)
+		return
+	}
+
 	columnIDStr := c.Query("column_id")
 	var punches []model.Punch
 	query := database.DB.Where("status = 0")
@@ -442,6 +459,7 @@ func GetPendingPunchList(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
+
 	var result []PunchWithImgsAndUser
 	for _, punch := range punches {
 		var imgs []model.PunchImg
@@ -450,12 +468,14 @@ func GetPendingPunchList(c *gin.Context) {
 		for _, img := range imgs {
 			imgUrls = append(imgUrls, img.ImgURL)
 		}
+
 		var user model.User
-		database.DB.First(&user, "id = ?", punch.UserID)
+		database.DB.Select("nick_name").First(&user, "id = ?", punch.UserID)
+
 		result = append(result, PunchWithImgsAndUser{
-			Punch: punch,
-			Imgs:  imgUrls,
-			User:  user,
+			Punch:    punch,
+			Imgs:     imgUrls,
+			NickName: user.NickName,
 		})
 	}
 	response.Success(c, result)
