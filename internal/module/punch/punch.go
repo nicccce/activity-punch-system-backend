@@ -183,6 +183,12 @@ func ReviewPunch(c *gin.Context) {
 		return
 	}
 
+	// 验证status值是否有效
+	if req.Status < 0 || req.Status > 2 {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("状态值无效，只能为0(待审核)、1(通过)、2(拒绝)"))
+		return
+	}
+
 	// 查找打卡记录
 	var punch model.Punch
 	if err := database.DB.First(&punch, req.PunchID).Error; err != nil {
