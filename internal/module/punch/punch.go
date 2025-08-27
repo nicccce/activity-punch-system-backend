@@ -440,6 +440,7 @@ type PunchWithImgsAndUser struct {
 	Punch    model.Punch `json:"punch"`
 	Imgs     []string    `json:"imgs"`
 	NickName string      `json:"nick_name"`
+	Stared   bool        `json:"stared"`
 }
 
 func GetPendingPunchList(c *gin.Context) {
@@ -483,10 +484,16 @@ func GetPendingPunchList(c *gin.Context) {
 		var user model.User
 		database.DB.Select("nick_name").First(&user, "id = ?", punch.UserID)
 
+		// 查询是否被收藏
+		var starCount int64
+		database.DB.Model(&model.Star{}).Where("punch_id = ? AND user_id = ?", punch.ID, userPayload.StudentID).Count(&starCount)
+		stared := starCount > 0
+
 		result = append(result, PunchWithImgsAndUser{
 			Punch:    punch,
 			Imgs:     imgUrls,
 			NickName: user.NickName,
+			Stared:   stared,
 		})
 	}
 	response.Success(c, result)
