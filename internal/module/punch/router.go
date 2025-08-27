@@ -35,5 +35,7 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 		commonGroup.GET("/my-list", GetMyPunchList)
 		// 获取最近参与栏目、项目、活动端点
 		commonGroup.GET("/recent-participation", GetRecentParticipation)
+		// 获取打卡记录详情端点
+		commonGroup.GET("/get/:id", GetPunchDetail)
 	}
 }

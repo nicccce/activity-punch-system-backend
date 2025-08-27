@@ -5,8 +5,13 @@ import (
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
+	"database/sql"
 	"strconv"
 	"time"
+
+	"errors"
+
+	"gorm.io/gorm"
 
 	"github.com/gin-gonic/gin"
 )
@@ -635,4 +640,85 @@ func GetTodayPunchCount(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"today_punch_count": count})
+}
+
+type PunchWithColumn struct {
+	model.Punch
+	JoinColumnID  sql.NullInt64  `gorm:"column:join_column_id"`  // 用于判断栏目是否存在
+	ColumnOwnerID sql.NullString `gorm:"column:column_owner_id"` // 用于权限判断
+}
+
+func GetPunchDetail(c *gin.Context) {
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	studentID := userPayload.StudentID
+	punchID := c.Param("id")
+
+	if punchID == "" {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡ID不能为空"))
+		return
+	}
+
+	var pc PunchWithColumn
+	err := database.DB.
+		Table("punch AS p").
+		Select("p.*, c.id AS join_column_id, c.owner_id AS column_owner_id").
+		Joins("LEFT JOIN `column` c ON c.id = p.column_id").
+		Where("p.id = ?", punchID).
+		Take(&pc).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// punches 里没有这条记录
+		response.Fail(c, response.ErrNotFound.WithTips("打卡记录不存在"))
+		return
+	}
+	if err != nil {
+		response.Fail(c, response.ErrDatabase.WithTips(err.Error()))
+		return
+	}
+
+	// 栏目是否存在（LEFT JOIN 成功但 c.id 为空 => 栏目不存在/被删）
+	if !pc.JoinColumnID.Valid {
+		response.Fail(c, response.ErrNotFound.WithTips("栏目不存在"))
+		return
+	}
+
+	// 权限判断：本人、管理员(RoleID>=1)、栏目所有者 三者之一即可
+	isOwner := pc.UserID == studentID
+	isAdmin := userPayload.RoleID >= 1
+	isColumnOwner := pc.ColumnOwnerID.Valid && pc.ColumnOwnerID.String == studentID
+
+	if !(isOwner || isAdmin || isColumnOwner) {
+		response.Fail(c, response.ErrForbidden)
+		return
+	}
+
+	var imgs []model.PunchImg
+	database.DB.Where("punch_id = ?", punchID).Find(&imgs)
+	imgUrls := make([]string, 0, len(imgs))
+	for _, img := range imgs {
+		imgUrls = append(imgUrls, img.ImgURL)
+	}
+
+	var stars []model.Star
+	err = database.DB.Where("punch_id = ? AND user_id = ?", punchID, studentID).Find(&stars).Error
+
+	var stared = false
+	if len(stars) > 0 {
+		stared = true
+	}
+
+	response.Success(c, gin.H{
+		"punch":  pc.Punch,
+		"stared": stared,
+		"imgs":   imgUrls,
+	})
 }
