@@ -722,3 +722,70 @@ func GetPunchDetail(c *gin.Context) {
 		"imgs":   imgUrls,
 	})
 }
+
+// 获取已审核的打卡列表
+func GetReviewedPunchList(c *gin.Context) {
+	// 获取认证信息并验证权限
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	// 只允许管理员或有权限的用户查看
+	if userPayload.RoleID < 1 {
+		response.Fail(c, response.ErrForbidden)
+		return
+	}
+
+	// 获取查询参数
+	columnIDStr := c.Query("column_id")
+	statusStr := c.Query("status") // 可选参数：1-通过, 2-拒绝
+
+	// 构建查询
+	query := database.DB.Where("status != 0") // 排除待审核
+	if columnIDStr != "" {
+		query = query.Where("column_id = ?", columnIDStr)
+	}
+	if statusStr != "" {
+		status, err := strconv.Atoi(statusStr)
+		if err == nil && (status == 1 || status == 2) {
+			query = query.Where("status = ?", status)
+		}
+	}
+
+	// 查询打卡记录
+	var punches []model.Punch
+	if err := query.Order("created_at desc").Find(&punches).Error; err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 组装返回数据
+	var result []PunchWithImgsAndUser
+	for _, punch := range punches {
+		// 查询打卡图片
+		var imgs []model.PunchImg
+		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+		imgUrls := make([]string, 0, len(imgs))
+		for _, img := range imgs {
+			imgUrls = append(imgUrls, img.ImgURL)
+		}
+
+		// 查询用户昵称
+		var user model.User
+		database.DB.Select("nick_name").First(&user, "id = ?", punch.UserID)
+
+		result = append(result, PunchWithImgsAndUser{
+			Punch:    punch,
+			Imgs:     imgUrls,
+			NickName: user.NickName,
+		})
+	}
+
+	response.Success(c, result)
+}
