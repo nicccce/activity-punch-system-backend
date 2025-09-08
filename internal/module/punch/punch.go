@@ -5,8 +5,13 @@ import (
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
+	"database/sql"
 	"strconv"
 	"time"
+
+	"errors"
+
+	"gorm.io/gorm"
 
 	"github.com/gin-gonic/gin"
 )
@@ -435,6 +440,7 @@ type PunchWithImgsAndUser struct {
 	Punch    model.Punch `json:"punch"`
 	Imgs     []string    `json:"imgs"`
 	NickName string      `json:"nick_name"`
+	Stared   bool        `json:"stared"`
 }
 
 func GetPendingPunchList(c *gin.Context) {
@@ -478,10 +484,16 @@ func GetPendingPunchList(c *gin.Context) {
 		var user model.User
 		database.DB.Select("nick_name").First(&user, "id = ?", punch.UserID)
 
+		// 查询是否被收藏
+		var starCount int64
+		database.DB.Model(&model.Star{}).Where("punch_id = ? AND user_id = ?", punch.ID, userPayload.StudentID).Count(&starCount)
+		stared := starCount > 0
+
 		result = append(result, PunchWithImgsAndUser{
 			Punch:    punch,
 			Imgs:     imgUrls,
 			NickName: user.NickName,
+			Stared:   stared,
 		})
 	}
 	response.Success(c, result)
@@ -635,4 +647,152 @@ func GetTodayPunchCount(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"today_punch_count": count})
+}
+
+type PunchWithColumn struct {
+	model.Punch
+	JoinColumnID  sql.NullInt64  `gorm:"column:join_column_id"`  // 用于判断栏目是否存在
+	ColumnOwnerID sql.NullString `gorm:"column:column_owner_id"` // 用于权限判断
+}
+
+func GetPunchDetail(c *gin.Context) {
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	studentID := userPayload.StudentID
+	punchID := c.Param("id")
+
+	if punchID == "" {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡ID不能为空"))
+		return
+	}
+
+	var pc PunchWithColumn
+	err := database.DB.
+		Table("punch AS p").
+		Select("p.*, c.id AS join_column_id, c.owner_id AS column_owner_id").
+		Joins("LEFT JOIN `column` c ON c.id = p.column_id").
+		Where("p.id = ?", punchID).
+		Take(&pc).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// punches 里没有这条记录
+		response.Fail(c, response.ErrNotFound.WithTips("打卡记录不存在"))
+		return
+	}
+	if err != nil {
+		response.Fail(c, response.ErrDatabase.WithTips(err.Error()))
+		return
+	}
+
+	// 栏目是否存在（LEFT JOIN 成功但 c.id 为空 => 栏目不存在/被删）
+	if !pc.JoinColumnID.Valid {
+		response.Fail(c, response.ErrNotFound.WithTips("栏目不存在"))
+		return
+	}
+
+	// 权限判断：本人、管理员(RoleID>=1)、栏目所有者 三者之一即可
+	isOwner := pc.UserID == studentID
+	isAdmin := userPayload.RoleID >= 1
+	isColumnOwner := pc.ColumnOwnerID.Valid && pc.ColumnOwnerID.String == studentID
+
+	if !(isOwner || isAdmin || isColumnOwner) {
+		response.Fail(c, response.ErrForbidden)
+		return
+	}
+
+	var imgs []model.PunchImg
+	database.DB.Where("punch_id = ?", punchID).Find(&imgs)
+	imgUrls := make([]string, 0, len(imgs))
+	for _, img := range imgs {
+		imgUrls = append(imgUrls, img.ImgURL)
+	}
+
+	var stars []model.Star
+	err = database.DB.Where("punch_id = ? AND user_id = ?", punchID, studentID).Find(&stars).Error
+
+	var stared = false
+	if len(stars) > 0 {
+		stared = true
+	}
+
+	response.Success(c, gin.H{
+		"punch":  pc.Punch,
+		"stared": stared,
+		"imgs":   imgUrls,
+	})
+}
+
+// 获取已审核的打卡列表
+func GetReviewedPunchList(c *gin.Context) {
+	// 获取认证信息并验证权限
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	// 只允许管理员或有权限的用户查看
+	if userPayload.RoleID < 1 {
+		response.Fail(c, response.ErrForbidden)
+		return
+	}
+
+	// 获取查询参数
+	columnIDStr := c.Query("column_id")
+	statusStr := c.Query("status") // 可选参数：1-通过, 2-拒绝
+
+	// 构建查询
+	query := database.DB.Where("status != 0") // 排除待审核
+	if columnIDStr != "" {
+		query = query.Where("column_id = ?", columnIDStr)
+	}
+	if statusStr != "" {
+		status, err := strconv.Atoi(statusStr)
+		if err == nil && (status == 1 || status == 2) {
+			query = query.Where("status = ?", status)
+		}
+	}
+
+	// 查询打卡记录
+	var punches []model.Punch
+	if err := query.Order("created_at desc").Find(&punches).Error; err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 组装返回数据
+	var result []PunchWithImgsAndUser
+	for _, punch := range punches {
+		// 查询打卡图片
+		var imgs []model.PunchImg
+		database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
+		imgUrls := make([]string, 0, len(imgs))
+		for _, img := range imgs {
+			imgUrls = append(imgUrls, img.ImgURL)
+		}
+
+		// 查询用户昵称
+		var user model.User
+		database.DB.Select("nick_name").First(&user, "id = ?", punch.UserID)
+
+		result = append(result, PunchWithImgsAndUser{
+			Punch:    punch,
+			Imgs:     imgUrls,
+			NickName: user.NickName,
+		})
+	}
+
+	response.Success(c, result)
 }

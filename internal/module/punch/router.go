@@ -15,6 +15,7 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 		// 审核打卡记录端点
 		adminGroup.POST("/review", ReviewPunch)
 		adminGroup.GET("/pending-list", GetPendingPunchList)
+		adminGroup.GET("/reviewed", GetReviewedPunchList)
 	}
 
 	commonGroup.Use(middleware.Auth(0))
@@ -35,5 +36,7 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 		commonGroup.GET("/my-list", GetMyPunchList)
 		// 获取最近参与栏目、项目、活动端点
 		commonGroup.GET("/recent-participation", GetRecentParticipation)
+		// 获取打卡记录详情端点
+		commonGroup.GET("/get/:id", GetPunchDetail)
 	}
 }
