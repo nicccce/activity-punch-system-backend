@@ -67,6 +67,9 @@ func list(c *gin.Context) {
 	var stars []model.Star
 	if err := database.DB.Model(&model.Star{}).
 		Preload("Punch").
+		Preload("Punch.Column").
+		Preload("Punch.Column.Project").
+		Preload("Punch.Column.Project.Activity").
 		Where("user_id = ?", user.StudentID).
 		Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&stars).Error; err != nil {
