@@ -32,5 +32,6 @@ func (p *ModuleActivity) InitRouter(r *gin.RouterGroup) {
 
 		// 还原删除项目端点
 		adminGroup.PUT("/restore/:id", RestoreActivity)
+		adminGroup.GET("/mine", MineActivities)
 	}
 }

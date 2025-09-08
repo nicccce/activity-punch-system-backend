@@ -421,3 +421,32 @@ func GetActivity(c *gin.Context) {
 
 	response.Success(c, result)
 }
+func MineActivities(c *gin.Context) {
+	// 获取认证信息
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	userPayload, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	StudentID := userPayload.StudentID
+	var activities []struct {
+		model.Model
+		Name        string `gorm:"type:varchar(100);not null" json:"name"`    // 活动名称
+		Description string `gorm:"type:varchar(255);" json:"description"`     // 活动描述
+		OwnerID     string `gorm:"type:varchar(20);not null" json:"owner_id"` // 所有者学号，外键指向用户表的学号
+		StartDate   int64  `gorm:"" json:"start_date"`                        // 活动开始时间
+		EndDate     int64  `gorm:"" json:"end_date"`                          // 活动结束时间
+		Avatar      string `gorm:"type:varchar(255);" json:"avatar"`          // 活动封面URL
+	}
+	if err := database.DB.Table("activity").Where("owner_id = ?", StudentID).Find(&activities).Error; err != nil {
+		log.Error("查询管理员自己创建的所有活动失败", "error", err, "student_id", StudentID)
+		response.Fail(c, response.ErrDatabase)
+		return
+	}
+	response.Success(c, activities)
+}
