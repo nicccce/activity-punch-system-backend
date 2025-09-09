@@ -1,5 +1,10 @@
 package model
 
+import (
+	"activity-punch-system/internal/global/database"
+	"gorm.io/gorm"
+)
+
 type Score struct {
 	Model
 	//我想还是uint好吧，前端自己做"汇率转换"
@@ -13,6 +18,31 @@ type Score struct {
 	Punch partialPunchForScore `gorm:"foreignKey:PunchID;references:ID"`
 	//不该这样的，但这样把ColumnID也放在了表里很方便应该是不负责打分部分的NIA_sai做强制"实时求和"统计(这种玩意有必要写吗？性能差不说，ACID的A是拿来看的吗？
 	Column partialColumnForScore `gorm:"foreignKey:ColumnID;references:ID" json:"column"`
+}
+
+func (s *Score) AfterCreate(tx *gorm.DB) (err error) {
+	var t TotalScore
+	if err = database.DB.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?",
+		tx.Statement.Context.Value("activity_id"), //todo: 记得加进context,或者自己写
+		s.UserID).Find(&t).Error; err == nil {
+		t.Score += s.Count
+		if err = database.DB.Save(&t).Error; err != nil {
+			return
+		}
+	}
+	return
+}
+func (s *Score) AfterDelete(tx *gorm.DB) (err error) {
+	var t TotalScore
+	if err = database.DB.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?",
+		tx.Statement.Context.Value("activity_id"), //todo: 记得加进context,或者自己写
+		s.UserID).Find(&t).Error; err == nil {
+		t.Score -= s.Count
+		if err = database.DB.Save(&t).Error; err != nil {
+			return
+		}
+	}
+	return
 }
 
 type partialPunchForScore struct {

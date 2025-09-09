@@ -15,13 +15,14 @@ type Continuity struct {
 	//RefreshAt time.Time `gorm:"not null" json:"refresh_at"`
 }
 
-// AddTo 仅仅是更新连续天数
-func (c *Continuity) AddTo(toTime time.Time) {
+// RefreshTo 仅仅是更新连续天数
+func (c *Continuity) RefreshTo(toTime time.Time) {
 	day := toTime.Unix() / (24 * 60 * 6)
-	if c.EndAt >= day {
-		return
+	if day-c.EndAt > 1 {
+		c.Current = 1
+	} else {
+		c.Current++
 	}
-	c.Current += uint(1 + day - c.EndAt)
 	if c.Current > c.Max {
 		c.Max = c.Current
 	}
