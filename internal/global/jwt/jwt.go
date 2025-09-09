@@ -8,6 +8,7 @@ import (
 )
 
 type Payload struct {
+	ID        uint   `json:"id"`
 	StudentID string `json:"student_id"`
 	RoleID    int    `json:"role_id"`
 }

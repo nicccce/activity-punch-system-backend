@@ -7,6 +7,7 @@ import (
 	"activity-punch-system/internal/module/project"
 	"activity-punch-system/internal/module/punch"
 	"activity-punch-system/internal/module/star"
+	"activity-punch-system/internal/module/stats"
 	"activity-punch-system/internal/module/user"
 
 	"github.com/gin-gonic/gin"
@@ -32,7 +33,8 @@ func init() {
 		&activity.ModuleActivity{},
 		&project.ModuleProject{},
 		&column.ModuleColumn{},
-		&punch.ModulePunch{},
+		&stats.ModuleStats{},
 		&star.ModuleStar{},
+		&punch.ModulePunch{},
 	})
 }

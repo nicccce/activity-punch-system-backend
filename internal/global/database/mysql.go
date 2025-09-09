@@ -23,6 +23,9 @@ var autoMigrateModels = []any{
 	&model.Punch{},
 	&model.PunchImg{},
 	&model.Star{},
+	&model.TotalScore{},
+	&model.Score{},
+	&model.Continuity{},
 	// 在这里添加其他模型
 }
 
