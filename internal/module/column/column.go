@@ -110,6 +110,11 @@ func CreateColumn(c *gin.Context) {
 		return
 	}
 
+	// 验证积分是否为负数
+	if req.PointEarned <= 0 {
+		log.Warn("积分必须大于0!", "point_earned", req.PointEarned)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("积分必须大于0!"))
+	}
 	// 创建新的栏目模型
 	column := model.Column{
 		Name:            req.Name,
@@ -120,7 +125,7 @@ func CreateColumn(c *gin.Context) {
 		EndDate:         req.EndDate,
 		Avatar:          req.Avatar,
 		DailyPunchLimit: req.DailyPunchLimit,
-		PointEarned:     req.PointEarned,
+		PointEarned:     uint(req.PointEarned),
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 	}
@@ -204,8 +209,16 @@ func UpdateColumn(c *gin.Context) {
 			response.Fail(c, response.ErrInvalidRequest.WithTips("栏目开始时间必须早于结束时间"))
 			return
 		}
-	}
 
+	}
+	if req.PointEarned != nil {
+		// 验证积分是否为负数
+		if *req.PointEarned <= 0 {
+			log.Warn("积分必须大于0!", "point_earned", req.PointEarned)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("积分必须大于0!"))
+		}
+		column.PointEarned = uint(*req.PointEarned)
+	}
 	if req.Name != nil {
 		column.Name = *req.Name
 	}
@@ -227,9 +240,7 @@ func UpdateColumn(c *gin.Context) {
 	if req.DailyPunchLimit != nil {
 		column.DailyPunchLimit = *req.DailyPunchLimit
 	}
-	if req.PointEarned != nil {
-		column.PointEarned = *req.PointEarned
-	}
+
 	if req.StartTime != nil {
 		column.StartTime = *req.StartTime
 	}

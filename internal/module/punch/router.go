@@ -16,6 +16,7 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 		adminGroup.POST("/review", ReviewPunch)
 		adminGroup.GET("/pending-list", GetPendingPunchList)
 		adminGroup.GET("/reviewed", GetReviewedPunchList)
+
 	}
 
 	commonGroup.Use(middleware.Auth(0))

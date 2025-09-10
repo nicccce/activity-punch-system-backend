@@ -27,17 +27,17 @@ func (s *Score) AfterDelete(tx *gorm.DB) (err error) {
 }
 
 func afterScoreChange(s *Score, tx *gorm.DB, sign bool) (err error) {
-	var t TotalScore
+	t := TotalScore{FkUserActivity: *(tx.Statement.Context.Value("fk_user_activity").(*FkUserActivity))}
 	if err = tx.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?",
-		tx.Statement.Context.Value("activity_id"), //todo: 记得加进context,或者自己写
-		s.UserID).Find(&t).Error; err == nil {
+		t.ActivityID, t.UserID).Find(&t).Error; err == nil {
+		flag := t.Score
 		if sign {
 			t.Score += s.Count
 		} else {
 			t.Score -= s.Count
 		}
-		if err = tx.Save(&t).Error; err != nil {
-			return
+		if flag != 0 || tx.Create(&t).Error != nil {
+			return tx.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?", t.ActivityID, t.UserID).Updates(t).Error
 		}
 	}
 	return

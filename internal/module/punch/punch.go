@@ -6,6 +6,7 @@ import (
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
 	"database/sql"
+	"fmt"
 	"golang.org/x/net/context"
 	"strconv"
 	"time"
@@ -42,7 +43,6 @@ func InsertPunch(c *gin.Context) {
 		response.Fail(c, response.ErrUnauthorized)
 		return
 	}
-	StudentID := userPayload.StudentID
 
 	// 绑定 JSON 数据
 	var req PunchInsertRequest
@@ -127,7 +127,7 @@ func InsertPunch(c *gin.Context) {
 
 	punch := &model.Punch{
 		ColumnID: req.ColumnID,
-		UserID:   StudentID,
+		UserID:   userPayload.ID,
 		Content:  req.Content,
 		Status:   0, // 默认待审核
 	}
@@ -160,8 +160,18 @@ func InsertPunch(c *gin.Context) {
 }
 
 type ReviewReq struct {
-	PunchID int `json:"punch_id" binding:"required"`
-	Status  int `json:"status" binding:"required"` // 1: 通过, 2: 拒绝
+	PunchID    int    `json:"punch_id" binding:"required"`
+	Status     int    `json:"status" binding:"required"` // 1: 通过, 2: 拒绝
+	Special    bool   `json:"special"`                   // 是否特殊打分
+	Score      int    `json:"score"`
+	Cause      string `json:"cause"`
+	MarkedBy   string `json:"marked_by"`   // 审核人
+	ClearScore bool   `json:"clear_score"` // 是否清除之前这条punch的分数(如果0或2的话
+}
+type reviewRes struct {
+	PunchID    int `json:"punch_id"`
+	Status     int `json:"status"`
+	AddedScore int `json:"added_score"`
 }
 
 // ReviewPunch 审核打卡记录
@@ -213,19 +223,105 @@ func ReviewPunch(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
-
-	// 查询图片数组
-	var imgs []model.PunchImg
-	database.DB.Where("punch_id = ?", punch.ID).Find(&imgs)
-	imgUrls := make([]string, 0, len(imgs))
-	for _, img := range imgs {
-		imgUrls = append(imgUrls, img.ImgURL)
+	res := reviewRes{
+		PunchID:    req.PunchID,
+		Status:     req.Status,
+		AddedScore: 0,
 	}
+	//获取方式可优化(优化为前端传来
+	var activityID uint
+	database.DB.Table("column").Select("project_id").Where("id = ?", punch.ColumnID).Scan(&(activityID))
+	if err := database.DB.Table("project").Select("activity_id").Where("id = ?", activityID).Scan(&(activityID)).Error; err != nil {
+		c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败 未找到所属的activity", Data: res})
+		return
+	}
+	tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserActivity{
+		ActivityID: activityID,
+		UserID:     userPayload.ID,
+	}))
+	// 大粪！通过才考虑打分
+	if req.Status == 1 {
 
-	response.Success(c, PunchWithImgs{
-		Punch: punch,
-		Imgs:  imgUrls,
-	})
+		if req.Special {
+			if req.Score <= 0 {
+				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败 分数不能小于1", Data: res})
+				return
+			}
+			if req.Cause == "Auto" {
+				req.Cause += "#并非自动打分"
+			}
+			score := model.Score{
+				UserID:   punch.UserID,
+				Count:    uint(req.Score),
+				Cause:    req.Cause,
+				MarkedBy: fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+				PunchID:  punch.ID,
+				ColumnID: uint(punch.ColumnID),
+			}
+			if err := tx.Create(&score).Error; err != nil {
+				log.Warn("数据库 插入自定义打分记录时失败", "err", err.Error())
+				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败", Data: res})
+				return
+			} else {
+				res.AddedScore = req.Score
+			}
+
+		} else {
+			//自动打分
+			//不可重复
+			exist := false
+			if err := database.DB.
+				Raw("SELECT EXISTS(SELECT 1 FROM score WHERE user_id = ? AND punch_id = ? AND deleted_at IS NULL)",
+					userPayload.ID, punch.ID).
+				Scan(&exist).Error; err != nil {
+				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分查重时失败", Data: res})
+				return
+			}
+			if exist {
+				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 自动打分失败,因为此前已经打过分,若需要加分,尝试special=true", Data: res})
+				return
+			}
+			if err := tx.Table("column").Select("point_earned").Where("id = ?", punch.ColumnID).Scan(&(req.Score)).Error; err != nil {
+				log.Warn("数据库 自动打分时获取column设置的分数时失败", "err", err.Error())
+				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败", Data: res})
+				return
+			} else {
+				score := model.Score{
+					UserID:   punch.UserID,
+					Count:    uint(req.Score),
+					Cause:    "Auto",
+					MarkedBy: fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+					PunchID:  punch.ID,
+					ColumnID: uint(punch.ColumnID),
+				}
+				if err := tx.Create(&score).Error; err != nil {
+					log.Warn("数据库 自动打分插入分数记录时失败", "err", err.Error())
+					c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败", Data: res})
+					return
+				} else {
+					res.AddedScore = req.Score
+				}
+			}
+
+		}
+	} else if req.ClearScore && req.Status == 2 { //扣粪!
+		var scores []model.Score
+		if err := tx.Where("user_id = ? AND punch_id = ?", userPayload.ID, punch.ID).Find(&scores).Error; err != nil {
+			log.Warn("数据库 扣分时获取score记录失败", "err", err.Error())
+			c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但扣分失败", Data: res})
+			return
+		}
+		for _, s := range scores {
+			if err := tx.Delete(&s).Error; err != nil {
+				log.Warn("数据库 扣分时删除score记录发生错误!", "err", err.Error())
+				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但扣分未完全完成", Data: res})
+				return
+			}
+			res.AddedScore -= int(s.Count)
+		}
+
+	}
+	response.Success(c, res)
 }
 
 // GetPunchesByColumn 查询某栏目下所有打卡记录
@@ -661,8 +757,8 @@ func GetTodayPunchCount(c *gin.Context) {
 
 type PunchWithColumn struct {
 	model.Punch
-	JoinColumnID  sql.NullInt64  `gorm:"column:join_column_id"`  // 用于判断栏目是否存在
-	ColumnOwnerID sql.NullString `gorm:"column:column_owner_id"` // 用于权限判断
+	JoinColumnID  sql.NullInt64 `gorm:"column:join_column_id"`  // 用于判断栏目是否存在
+	ColumnOwnerID sql.NullInt64 `gorm:"column:column_owner_id"` // 用于权限判断
 }
 
 func GetPunchDetail(c *gin.Context) {
@@ -676,7 +772,7 @@ func GetPunchDetail(c *gin.Context) {
 		response.Fail(c, response.ErrUnauthorized)
 		return
 	}
-	studentID := userPayload.StudentID
+	studentID := userPayload.ID
 	punchID := c.Param("id")
 
 	if punchID == "" {
@@ -711,7 +807,7 @@ func GetPunchDetail(c *gin.Context) {
 	// 权限判断：本人、管理员(RoleID>=1)、栏目所有者 三者之一即可
 	isOwner := pc.UserID == studentID
 	isAdmin := userPayload.RoleID >= 1
-	isColumnOwner := pc.ColumnOwnerID.Valid && pc.ColumnOwnerID.String == studentID
+	isColumnOwner := pc.ColumnOwnerID.Valid && uint(pc.ColumnOwnerID.Int64) == studentID
 
 	if !(isOwner || isAdmin || isColumnOwner) {
 		response.Fail(c, response.ErrForbidden)

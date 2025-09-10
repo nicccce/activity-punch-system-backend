@@ -60,9 +60,9 @@ func selectRank(activityID uint, offset, limit int) ([]rank, error) {
 }
 
 type briefResult struct {
-	Rank              int  `gorm:"ranks" json:"rank"`
+	Rank              int  `gorm:"column:ranks" json:"rank"`
 	TodayPuncherCount uint `json:"today_punched_user_count"`
-	TotalScore        uint `gorm:"ts" json:"total_score"`
+	TotalScore        uint `gorm:"column:ts" json:"total_score"`
 	model.Continuity
 }
 

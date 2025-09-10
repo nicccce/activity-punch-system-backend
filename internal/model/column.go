@@ -11,7 +11,7 @@ type Column struct {
 	EndDate         int64   `gorm:"" json:"end_date"`                                  // 栏目结束时间
 	Avatar          string  `gorm:"type:varchar(255);" json:"avatar"`                  // 栏目封面URL
 	DailyPunchLimit int     `gorm:"default:0;not null" json:"daily_punch_limit"`       // 每日可打卡次数，0表示不限次数
-	PointEarned     int     `gorm:"default:0;not null" json:"point_earned"`            // 每次打卡可获得的积分
+	PointEarned     uint    `gorm:"default:0;not null" json:"point_earned"`            // 每次打卡可获得的积分
 	StartTime       string  `gorm:"type:varchar(10);not null" json:"start_time"`       // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string  `gorm:"type:varchar(10);not null" json:"end_time"`         // 每日打卡结束时间，格式为 "HH:MM"
 	// 关联到用户

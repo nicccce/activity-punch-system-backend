@@ -365,7 +365,7 @@ type ColumnInProject struct {
 	Avatar          string `json:"avatar"`
 	Description     string `json:"description"`       // 栏目描述
 	DailyPunchLimit int    `json:"daily_punch_limit"` // 每日可打卡次数，0表示不限次数
-	PointEarned     int    `json:"point_earned"`      // 每次打卡可获得的积分
+	PointEarned     uint   `json:"point_earned"`      // 每次打卡可获得的积分
 	StartTime       string `json:"start_time"`        // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string `json:"end_time"`          // 每日打卡结束时间，格式为 "HH:MM"
 }
