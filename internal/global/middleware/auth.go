@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"activity-punch-system/config"
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"strings"
@@ -10,6 +11,10 @@ import (
 
 func Auth(minRoleID int) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if config.Get().Mode == "debug" {
+			c.Next()
+			return
+		}
 		// 获取 Authorization 头
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

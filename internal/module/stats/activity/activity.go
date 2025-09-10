@@ -8,10 +8,14 @@ import (
 	"activity-punch-system/internal/model"
 	"activity-punch-system/internal/module/stats/tree"
 	"activity-punch-system/tools"
+	"bytes"
 	"errors"
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"net/url"
 	"time"
 )
 
@@ -179,6 +183,84 @@ func Brief(c *gin.Context) {
 	}
 	response.Success(c, result)
 }
+
+func Export(c *gin.Context) {
+	a, ok := activityIdValidator(c)
+	if !ok {
+		return
+	}
+	projects := []model.Project{}
+	if err := database.DB.Model(&model.Project{}).Where("activity_id = ? AND deleted_at IS NULL", a.ID).Find(&projects).Error; err != nil {
+		log.Error("查询 project 表错误", "error", err)
+		response.Fail(c, response.ErrDatabase)
+		return
+	}
+	f := excelize.NewFile()
+
+	defer tools.PanicOnErr(f.Close())
+	if err := tools.ExportToExcel(f, "活动"+a.Name+"下的项目", projects); err != nil {
+		log.Error("导出excel错误", "error", err)
+		response.Fail(c, response.ErrServerInternal)
+		return
+	}
+	for _, p := range projects {
+		columns := []model.Column{}
+		if err := database.DB.Model(&model.Column{}).Where("project_id = ? AND deleted_at IS NULL", p.ID).Find(&columns).Error; err != nil {
+			log.Error("查询 column 表错误", "error", err)
+			response.Fail(c, response.ErrDatabase)
+			return
+		}
+		if err := tools.ExportToExcel(f, fmt.Sprintf("项目%d下的栏目", p.ID), columns); err != nil {
+			log.Error("导出excel错误", "error", err)
+			response.Fail(c, response.ErrServerInternal)
+			return
+		}
+		for _, column := range columns {
+			punches := []model.Punch{}
+			if err := database.DB.Model(&model.Punch{}).Where("column_id = ? AND deleted_at IS NULL", column.ID).Find(&punches).Error; err != nil {
+				log.Error("查询 punch 表错误", "error", err)
+				response.Fail(c, response.ErrDatabase)
+				return
+			}
+			if err := tools.ExportToExcel(f, fmt.Sprintf("栏目%d的打卡记录", column.ID), punches); err != nil {
+				log.Error("导出excel错误", "error", err)
+				response.Fail(c, response.ErrServerInternal)
+				return
+			}
+			for _, punch := range punches {
+				scores := []model.Score{}
+				if err := database.DB.Model(&model.Score{}).Where("punch_id = ? AND deleted_at IS NULL", punch.ID).Find(&scores).Error; err != nil {
+					log.Error("查询 score 表错误", "error", err)
+					response.Fail(c, response.ErrDatabase)
+					return
+				}
+				if err := tools.ExportToExcel(f, fmt.Sprintf("打卡记录%d的得分记录", punch.ID), scores); err != nil {
+					log.Error("导出excel错误", "error", err)
+					response.Fail(c, response.ErrServerInternal)
+					return
+				}
+			}
+		}
+
+	}
+	_ = f.DeleteSheet("Sheet1")
+
+	buf := &bytes.Buffer{}
+	if err := f.Write(buf); err != nil {
+		log.Error("导出excel错误", "error", err)
+		response.Fail(c, response.ErrServerInternal)
+		return
+	}
+
+	c.Header("Content-Type", "application/octet-stream")
+	c.Header("Content-Disposition", "attachment; filename*=UTF-8''"+url.QueryEscape(a.Name+".xlsx"))
+	if _, err := c.Writer.Write(buf.Bytes()); err != nil {
+		log.Error("导出excel错误", "error", err)
+		response.Fail(c, response.ErrServerInternal)
+	}
+
+}
+
 func ExportMyStats2Json(c *gin.Context) {
 	user, ok := jwt.GetUserPayload(c)
 	if !ok {

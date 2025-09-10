@@ -30,10 +30,13 @@ func (*ModuleStats) InitRouter(r *gin.RouterGroup) {
 	adminGroup.Use(middleware.Auth(1))
 	{
 		//columnGroup := adminGroup.Group("/column/:id")
+		//{
+		//columnGroup.POST("/export", column.Export2Json())
+		//commonGroup.POST("/export/rank.xlsx", column.Export2Excel)
+		//}
+		activityAdmin := commonGroup.Group("/activity")
 		{
-			//columnGroup.POST("/export", column.Export2Json())
-			//commonGroup.POST("/export/rank.xlsx", column.Export2Excel)
+			activityAdmin.GET("/:id/export", activity.Export)
 		}
-
 	}
 }

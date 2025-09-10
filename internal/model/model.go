@@ -7,10 +7,10 @@ import (
 )
 
 type Model struct {
-	ID        uint           `gorm:"primaryKey"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at"`
+	ID        uint           `gorm:"primaryKey" excel:"id"`
+	CreatedAt time.Time      `json:"created_at"  excel:"创建时间"`
+	UpdatedAt time.Time      `json:"updated_at" excel:"更新时间"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"deleted_at" excel:"-"`
 }
 
 func (m *Model) CreateTime() int64 {

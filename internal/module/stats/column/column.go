@@ -6,7 +6,6 @@ import (
 	"activity-punch-system/internal/global/logger"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
-	"activity-punch-system/internal/module/stats/tool"
 	"activity-punch-system/tools"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -122,7 +121,7 @@ func Export2Excel() gin.HandlerFunc {
 		}
 		f := excelize.NewFile()
 		defer tools.PanicOnErr(f.Close())
-		err = tool.ExportToExcel(f, "", records)
+		err = tools.ExportToExcel(f, "", records)
 		if err != nil {
 			log.Error("导出 excel 错误", "error", err)
 			response.Fail(c, response.ErrDatabase.WithOrigin(err))
