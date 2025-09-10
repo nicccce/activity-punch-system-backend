@@ -1,7 +1,6 @@
 package model
 
 import (
-	"activity-punch-system/internal/global/database"
 	"gorm.io/gorm"
 )
 
@@ -17,11 +16,11 @@ type Punch struct {
 // todo: 未测 打卡能被删除吗？
 func (p *Punch) AfterCreate(tx *gorm.DB) (err error) {
 	var c Continuity
-	if err = database.DB.Model(&Continuity{}).Where("activity_id = ? AND user_id = ?",
+	if err = tx.Model(&Continuity{}).Where("activity_id = ? AND user_id = ?",
 		tx.Statement.Context.Value("activity_id"), //todo: 记得加进context,或者自己写
 		p.UserID).Find(&c).Error; err == nil {
 		c.RefreshTo(p.CreatedAt)
-		if err = database.DB.Save(&c).Error; err != nil {
+		if err = tx.Save(&c).Error; err != nil {
 			return
 		}
 	}

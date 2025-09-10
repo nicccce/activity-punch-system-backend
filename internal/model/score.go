@@ -1,7 +1,6 @@
 package model
 
 import (
-	"activity-punch-system/internal/global/database"
 	"gorm.io/gorm"
 )
 
@@ -21,24 +20,23 @@ type Score struct {
 }
 
 func (s *Score) AfterCreate(tx *gorm.DB) (err error) {
-	var t TotalScore
-	if err = database.DB.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?",
-		tx.Statement.Context.Value("activity_id"), //todo: 记得加进context,或者自己写
-		s.UserID).Find(&t).Error; err == nil {
-		t.Score += s.Count
-		if err = database.DB.Save(&t).Error; err != nil {
-			return
-		}
-	}
-	return
+	return afterScoreChange(s, tx, true)
 }
 func (s *Score) AfterDelete(tx *gorm.DB) (err error) {
+	return afterScoreChange(s, tx, false)
+}
+
+func afterScoreChange(s *Score, tx *gorm.DB, sign bool) (err error) {
 	var t TotalScore
-	if err = database.DB.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?",
+	if err = tx.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?",
 		tx.Statement.Context.Value("activity_id"), //todo: 记得加进context,或者自己写
 		s.UserID).Find(&t).Error; err == nil {
-		t.Score -= s.Count
-		if err = database.DB.Save(&t).Error; err != nil {
+		if sign {
+			t.Score += s.Count
+		} else {
+			t.Score -= s.Count
+		}
+		if err = tx.Save(&t).Error; err != nil {
 			return
 		}
 	}

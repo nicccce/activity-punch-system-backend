@@ -6,7 +6,7 @@ import "time"
 // todo: 打卡的时候记得更新
 type Continuity struct {
 	UserID     uint                     `gorm:"not null;index:idx_user_activity,unique" json:"-"`
-	ActivityID uint                     `gorm:"not null;index:idx_user_activity,unique" json:"activity_id"`
+	ActivityID uint                     `gorm:"not null;index:idx_user_activity,unique" json:"-"`
 	Current    uint                     `gorm:"not null" json:"current"`
 	Max        uint                     `gorm:"not null" json:"max"`
 	User       partialUserForTotalScore `gorm:"foreignKey:UserID;references:ID" json:"-"`

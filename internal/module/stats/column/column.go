@@ -35,7 +35,7 @@ func Brief(c *gin.Context) {
 		return
 	}
 	var result briefResult
-	askTime := tool.GetTime(c)
+	askTime := tools.GetTime(c)
 	if err := briefStats(columnId, user.Id, askTime, &result); err != nil {
 		log.Error("查询 column 表错误", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
@@ -51,8 +51,8 @@ func Rank(c *gin.Context) {
 	if !ok {
 		return
 	}
-	askTime := tool.GetTime(c)
-	offset, limit := tool.GetPage(c)
+	askTime := tools.GetTime(c)
+	offset, limit := tools.GetPage(c)
 	var result []rankResult
 	var err error
 	if rbc := c.Query("rankByCount"); rbc == "true" {
@@ -93,8 +93,8 @@ func Export2Json(whereUser bool) gin.HandlerFunc {
 			return
 		}
 		var records []Record
-		offset, limit := tool.GetPage(c)
-		askTime := tool.GetTime(c)
+		offset, limit := tools.GetPage(c)
+		askTime := tools.GetTime(c)
 		err := selectRecords(columnId, askTime, offset, limit, &records, "")
 		if err != nil {
 			log.Error("查询 column 表错误", "error", err)
@@ -113,7 +113,7 @@ func Export2Excel() gin.HandlerFunc {
 			return
 		}
 		var records []Record
-		askTime := tool.GetTime(c)
+		askTime := tools.GetTime(c)
 		err := selectRecords(columnId, askTime, 0, math.MaxInt, &records, "")
 		if err != nil {
 			log.Error("查询 column 表错误", "error", err)

@@ -5,6 +5,7 @@ import (
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
+	"activity-punch-system/tools"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -434,16 +435,18 @@ func MineActivities(c *gin.Context) {
 		return
 	}
 	StudentID := userPayload.StudentID
+	offset, limit := tools.GetPage(c)
 	var activities []struct {
 		model.Model
-		Name        string `gorm:"type:varchar(100);not null" json:"name"`    // 活动名称
-		Description string `gorm:"type:varchar(255);" json:"description"`     // 活动描述
-		OwnerID     string `gorm:"type:varchar(20);not null" json:"owner_id"` // 所有者学号，外键指向用户表的学号
-		StartDate   int64  `gorm:"" json:"start_date"`                        // 活动开始时间
-		EndDate     int64  `gorm:"" json:"end_date"`                          // 活动结束时间
-		Avatar      string `gorm:"type:varchar(255);" json:"avatar"`          // 活动封面URL
+		Name        string `gorm:"type:varchar(100);not null" json:"name"` // 活动名称
+		Description string `gorm:"type:varchar(255);" json:"description"`  // 活动描述
+		StartDate   int64  `gorm:"" json:"start_date"`                     // 活动开始时间
+		EndDate     int64  `gorm:"" json:"end_date"`                       // 活动结束时间
+		Avatar      string `gorm:"type:varchar(255);" json:"avatar"`       // 活动封面URL
 	}
-	if err := database.DB.Table("activity").Where("owner_id = ?", StudentID).Find(&activities).Error; err != nil {
+	if err := database.DB.Table("activity").Where("owner_id = ?", StudentID).
+		Offset(offset).Limit(limit).
+		Find(&activities).Error; err != nil {
 		log.Error("查询管理员自己创建的所有活动失败", "error", err, "student_id", StudentID)
 		response.Fail(c, response.ErrDatabase)
 		return

@@ -6,8 +6,8 @@ import (
 	"activity-punch-system/internal/global/logger"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
-	"activity-punch-system/internal/module/stats/tool"
 	"activity-punch-system/internal/module/stats/tree"
+	"activity-punch-system/tools"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -24,8 +24,8 @@ func History(c *gin.Context) {
 		response.Fail(c, response.ErrUnauthorized)
 		return
 	}
-	offset, limit := tool.GetPage(c)
-	askTime := tool.GetTime(c)
+	offset, limit := tools.GetPage(c)
+	askTime := tools.GetTime(c)
 	var result []model.Activity
 	err := selectHistory(user.ID, askTime, offset, limit, &result)
 	if err != nil {
@@ -45,7 +45,7 @@ func Rank(c *gin.Context) {
 	if !ok {
 		return
 	}
-	offset, limit := tool.GetPage(c)
+	offset, limit := tools.GetPage(c)
 	forceStr := c.Query("force")
 	force := false
 	if forceStr == "true" {
@@ -123,7 +123,7 @@ func Detail(c *gin.Context) {
 	if !ok {
 		return
 	}
-	offset, limit := tool.GetPage(c)
+	offset, limit := tools.GetPage(c)
 	columnIDs, err := getColumnIds(a.ID)
 	if err != nil {
 		response.Fail(c, response.ErrDatabase)
@@ -183,7 +183,7 @@ func ExportMyStats2Json(c *gin.Context) {
 		response.Fail(c, response.ErrUnauthorized)
 		return
 	}
-	askTime := tool.GetTime(c)
+	askTime := tools.GetTime(c)
 	a, ok := activityIdValidator(c)
 	if !ok {
 		return
@@ -256,7 +256,7 @@ func (c Column) NextLayer() []tree.Record {
 	return nil
 }
 func (c Column) GetScore(userId string, startTime, endTime int64) float64 {
-	var rs []tool.Punch
+	var rs []tools.Punch
 	//todo
 	var sum = 0.0
 	for _, r := range rs {
