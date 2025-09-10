@@ -797,8 +797,7 @@ func GetReviewedPunchList(c *gin.Context) {
 			Scan(&exist).Error
 		if err != nil {
 			response.Fail(c, response.ErrDatabase)
-		} else {
-			response.Success(c, exist)
+			return
 		}
 		result = append(result, PunchWithImgsAndUser{
 			Punch:    punch,
