@@ -790,11 +790,21 @@ func GetReviewedPunchList(c *gin.Context) {
 		// 查询用户昵称
 		var user model.User
 		database.DB.Select("nick_name").First(&user, "id = ?", punch.UserID)
-
+		var exist bool
+		err := database.DB.
+			Raw("SELECT EXISTS(SELECT 1 FROM star WHERE user_id = ? AND punch_id = ? )",
+				userPayload.ID, punch.ID).
+			Scan(&exist).Error
+		if err != nil {
+			response.Fail(c, response.ErrDatabase)
+		} else {
+			response.Success(c, exist)
+		}
 		result = append(result, PunchWithImgsAndUser{
 			Punch:    punch,
 			Imgs:     imgUrls,
 			NickName: user.NickName,
+			Stared:   exist,
 		})
 	}
 

@@ -70,18 +70,18 @@ func list(c *gin.Context) {
 		Preload("Punch.Column").
 		Preload("Punch.Column.Project").
 		Preload("Punch.Column.Project.Activity").
-		Where("user_id = ?", user.StudentID).
+		Where("user_id = ?", user.ID).
 		Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).
 		Find(&stars).Error; err != nil {
 		response.Fail(c, response.ErrDatabase)
 	} else {
 		response.Success(c, struct {
-			UserId   string       `json:"user_id"`
+			UserId   uint         `json:"user_id"`
 			PageSize int          `json:"page_size"`
 			Page     int          `json:"page"`
 			Stars    []model.Star `json:"stars"`
 		}{
-			UserId:   user.StudentID,
+			UserId:   user.ID,
 			PageSize: pageSize,
 			Page:     page,
 			Stars:    stars,
@@ -100,7 +100,7 @@ func cancel(c *gin.Context) {
 		response.Fail(c, err)
 		return
 	}
-	dere := database.DB.Where("user_id = ? AND punch_id = ?", user.StudentID, punchIDstr).Delete(&model.Star{})
+	dere := database.DB.Where("user_id = ? AND punch_id = ?", user.ID, punchIDstr).Delete(&model.Star{})
 	if dere.Error != nil {
 		response.Fail(c, response.ErrDatabase)
 	} else if dere.RowsAffected == 0 {
@@ -135,7 +135,7 @@ func ask(c *gin.Context) {
 	}
 	err = database.DB.
 		Raw("SELECT EXISTS(SELECT 1 FROM star WHERE user_id = ? AND punch_id = ? )",
-			user.StudentID, punchIDstr).
+			user.ID, punchIDstr).
 		Scan(&exist).Error
 	if err != nil {
 		response.Fail(c, response.ErrDatabase)
