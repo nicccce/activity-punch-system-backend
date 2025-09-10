@@ -500,7 +500,13 @@ func GetPendingPunchList(c *gin.Context) {
 			Stared:   stared,
 		})
 	}
-	response.Success(c, result)
+	response.Success(c, struct {
+		Total int                    `json:"total"`
+		Ps    []PunchWithImgsAndUser `json:"punches"`
+	}{
+		Total: len(punches),
+		Ps:    result,
+	})
 }
 
 // 查询自己所有打卡记录
@@ -807,5 +813,12 @@ func GetReviewedPunchList(c *gin.Context) {
 		})
 	}
 
-	response.Success(c, result)
+	response.Success(c, struct {
+		Total int                    `json:"total"`
+		Ps    []PunchWithImgsAndUser `json:"punches"`
+	}{
+		Total: len(punches),
+		Ps:    result,
+	})
+	return
 }
