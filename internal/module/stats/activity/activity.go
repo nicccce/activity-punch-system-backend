@@ -1,8 +1,8 @@
 package activity
 
 import (
-	"activity-punch-system/internal/global/context"
 	"activity-punch-system/internal/global/database"
+	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/logger"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
@@ -19,7 +19,7 @@ var log = logger.New("Stats-Activity")
 
 // History 获取活动历史
 func History(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return
@@ -36,7 +36,7 @@ func History(c *gin.Context) {
 	response.Success(c, result)
 }
 func Rank(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return
@@ -92,9 +92,11 @@ func Rank(c *gin.Context) {
 				Columns:   []clause.Column{{Name: "user_id"}, {Name: "activity_id"}},
 				DoUpdates: clause.AssignmentColumns([]string{"score"}),
 			}).Create(&model.TotalScore{
-				UserID:     id,
-				ActivityID: a.ID,
-				Score:      score,
+				FkUserActivity: model.FkUserActivity{
+					UserID:     id,
+					ActivityID: a.ID,
+				},
+				Score: score,
 			}).Error; err != nil {
 				log.Error("数据库 更新 total_score 表错误", "error", err.Error())
 			}
@@ -114,7 +116,7 @@ func Rank(c *gin.Context) {
 }
 
 func Detail(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return
@@ -151,7 +153,7 @@ func Detail(c *gin.Context) {
 // 以及请求者在该活动下的排名(按打卡总得分排名)
 // ....困了
 func Brief(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return
@@ -178,7 +180,7 @@ func Brief(c *gin.Context) {
 	response.Success(c, result)
 }
 func ExportMyStats2Json(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return

@@ -6,6 +6,7 @@ import (
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
 	"database/sql"
+	"golang.org/x/net/context"
 	"strconv"
 	"time"
 
@@ -58,7 +59,7 @@ func InsertPunch(c *gin.Context) {
 	}
 	today := time.Now().Truncate(24 * time.Hour)
 	count := int64(0)
-	if err := database.DB.Model(&model.Punch{}).Where("column_id = ? AND created_at >= ?", req.ColumnID, today).Count(&count).Error; err != nil {
+	if err := database.DB.Model(&model.Punch{}).Where("user_id = ? AND column_id = ? AND created_at >= ?", userPayload.StudentID, req.ColumnID, today).Count(&count).Error; err != nil {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
@@ -77,7 +78,7 @@ func InsertPunch(c *gin.Context) {
 
 	// 获取栏目时间范围，判断是否允许打卡
 	var column model.Column
-	if err := database.DB.First(&column, "id = ?", req.ColumnID).Error; err != nil {
+	if err := database.DB.Preload("Project").Preload("Project.Activity").First(&column, "id = ?", req.ColumnID).Error; err != nil {
 		response.Fail(c, response.ErrNotFound.WithTips("栏目不存在"))
 		return
 	}
@@ -130,8 +131,11 @@ func InsertPunch(c *gin.Context) {
 		Content:  req.Content,
 		Status:   0, // 默认待审核
 	}
-
-	if err := database.DB.Create(punch).Error; err != nil {
+	tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserActivity{
+		ActivityID: column.Project.Activity.ID,
+		UserID:     userPayload.ID,
+	}))
+	if err := tx.Create(punch).Error; err != nil {
 		log.Error("插入打卡记录失败", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return

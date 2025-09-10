@@ -1,8 +1,8 @@
 package star
 
 import (
-	"activity-punch-system/internal/global/context"
 	"activity-punch-system/internal/global/database"
+	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
 	"github.com/gin-gonic/gin"
@@ -11,7 +11,7 @@ import (
 )
 
 func add(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return
@@ -34,7 +34,7 @@ func add(c *gin.Context) {
 		return
 	}
 	star := &model.Star{
-		UserID:  user.StudentID,
+		UserID:  user.ID,
 		PunchID: punchID,
 	}
 	if err = database.DB.Create(star).Error; err != nil {
@@ -49,7 +49,7 @@ func add(c *gin.Context) {
 	}
 }
 func list(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return
@@ -89,7 +89,7 @@ func list(c *gin.Context) {
 	}
 }
 func cancel(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return
@@ -110,7 +110,7 @@ func cancel(c *gin.Context) {
 	}
 }
 func ask(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return

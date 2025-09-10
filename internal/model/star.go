@@ -4,7 +4,7 @@ import "time"
 
 type Star struct {
 	//Type  int //区别收藏类型
-	UserID    string    `gorm:"type:varchar(20);not null;index:idx_user_punch,unique" json:"-"`
+	UserID    uint      `gorm:"type:varchar(20);not null;index:idx_user_punch,unique" json:"-"`
 	PunchID   uint      `gorm:"not null;index:idx_user_punch,unique" json:"-"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	//甚为丑陋

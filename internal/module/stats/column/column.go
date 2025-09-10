@@ -1,8 +1,8 @@
 package column
 
 import (
-	"activity-punch-system/internal/global/context"
 	"activity-punch-system/internal/global/database"
+	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/logger"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
@@ -25,7 +25,7 @@ var log = logger.New("Stats-Column")
 // 以及请求者在该栏目下的排名(按打卡总得分排名)
 // todo: 这几者揉在一起的合理性有待考量
 func Brief(c *gin.Context) {
-	user, ok := context.GetUserPayload(c)
+	user, ok := jwt.GetUserPayload(c)
 	if !ok {
 		response.Fail(c, response.ErrUnauthorized)
 		return

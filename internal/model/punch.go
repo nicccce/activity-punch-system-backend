@@ -15,13 +15,16 @@ type Punch struct {
 
 // todo: 未测 打卡能被删除吗？
 func (p *Punch) AfterCreate(tx *gorm.DB) (err error) {
-	var c Continuity
-	if err = tx.Model(&Continuity{}).Where("activity_id = ? AND user_id = ?",
-		tx.Statement.Context.Value("activity_id"), //todo: 记得加进context,或者自己写
-		p.UserID).Find(&c).Error; err == nil {
+	c := Continuity{FkUserActivity: *(tx.Statement.Context.Value("fk_user_activity").(*FkUserActivity))}
+	if err = tx.Model(&Continuity{}).
+		Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).
+		Find(&c).Error; err == nil {
+		flag := c.Total
 		c.RefreshTo(p.CreatedAt)
-		if err = tx.Save(&c).Error; err != nil {
-			return
+		if flag == 0 {
+			return tx.Create(&c).Error
+		} else {
+			return tx.Model(&Continuity{}).Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).Updates(c).Error
 		}
 	}
 	return

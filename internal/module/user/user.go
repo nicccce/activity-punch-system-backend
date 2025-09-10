@@ -100,6 +100,7 @@ func Login(c *gin.Context) {
 		// 生成 JWT 令牌并返回用户信息
 		response.Success(c, map[string]interface{}{
 			"token": jwt.CreateToken(jwt.Payload{
+				ID:        user.ID,
 				StudentID: user.StudentID,
 				RoleID:    user.RoleID,
 			}),

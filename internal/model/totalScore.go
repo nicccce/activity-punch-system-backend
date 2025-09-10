@@ -4,10 +4,9 @@ package model
 // todo: 打分/撤销打分的时候记得更新,你那里很容易获取activity id的啊啊啊
 // mysql你最好是A好了
 type TotalScore struct {
-	UserID     uint                     `gorm:"not null;index:idx_user_activity,unique" json:"-"`
-	ActivityID uint                     `gorm:"not null;index:idx_user_activity,unique" json:"-"`
-	Score      uint                     `gorm:"not null" json:"score"`
-	User       partialUserForTotalScore `gorm:"foreignKey:UserID;references:ID" json:"user"`
+	FkUserActivity
+	Score uint                     `gorm:"not null" json:"score"`
+	User  partialUserForTotalScore `gorm:"foreignKey:UserID;references:ID" json:"user"`
 }
 
 // 防前端
