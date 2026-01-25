@@ -22,34 +22,40 @@ type Project struct {
 
 // ProjectCreateReq 定义创建项目请求的结构体
 type ProjectCreateReq struct {
-	Name        string `json:"name" binding:"required"`        // 项目名称
-	Description string `json:"description"`                    // 项目描述
-	ActivityID  uint   `json:"activity_id" binding:"required"` // 关联的活动ID
-	StartDate   int64  `json:"start_date" binding:"required"`  // 项目开始日期
-	EndDate     int64  `json:"end_date" binding:"required"`    // 项目结束日期
-	Avatar      string `json:"avatar"`                         // 项目封面URL
+	Name            string `json:"name" binding:"required"`        // 项目名称
+	Description     string `json:"description"`                    // 项目描述
+	ActivityID      uint   `json:"activity_id" binding:"required"` // 关联的活动ID
+	StartDate       int64  `json:"start_date" binding:"required"`  // 项目开始日期
+	EndDate         int64  `json:"end_date" binding:"required"`    // 项目结束日期
+	Avatar          string `json:"avatar"`                         // 项目封面URL
+	CompletionBonus uint   `json:"completion_bonus"`               // 完成项目所有栏目后的额外奖励积分，可选，默认0
+	ExemptFromLimit bool   `json:"exempt_from_limit"`              // 该项目的积分是否不计入活动每日积分上限，可选，默认false
 }
 
 // ProjectUpdateReq 定义更新项目请求的结构体，使用指针类型支持部分更新
 type ProjectUpdateReq struct {
-	Name        *string `json:"name"`        // 项目名称，可选
-	Description *string `json:"description"` // 项目描述，可选
-	ActivityID  *uint   `json:"activity_id"` // 关联的活动ID，可选
-	StartDate   *int64  `json:"start_date"`  // 项目开始日期，可选
-	EndDate     *int64  `json:"end_date"`    // 项目结束日期，可选
-	Avatar      *string `json:"avatar"`      // 项目封面URL，可选
+	Name            *string `json:"name"`              // 项目名称，可选
+	Description     *string `json:"description"`       // 项目描述，可选
+	ActivityID      *uint   `json:"activity_id"`       // 关联的活动ID，可选
+	StartDate       *int64  `json:"start_date"`        // 项目开始日期，可选
+	EndDate         *int64  `json:"end_date"`          // 项目结束日期，可选
+	Avatar          *string `json:"avatar"`            // 项目封面URL，可选
+	CompletionBonus *uint   `json:"completion_bonus"`  // 完成项目所有栏目后的额外奖励积分，可选
+	ExemptFromLimit *bool   `json:"exempt_from_limit"` // 该项目的积分是否不计入活动每日积分上限，可选
 }
 
 // ProjectResponse 定义项目响应结构体（不包含空的Activity字段）
 type ProjectResponse struct {
-	ID          uint   `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	OwnerID     string `json:"owner_id"`
-	ActivityID  uint   `json:"activity_id"`
-	StartDate   int64  `json:"start_date"`
-	EndDate     int64  `json:"end_date"`
-	Avatar      string `json:"avatar"`
+	ID              uint   `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	OwnerID         string `json:"owner_id"`
+	ActivityID      uint   `json:"activity_id"`
+	StartDate       int64  `json:"start_date"`
+	EndDate         int64  `json:"end_date"`
+	Avatar          string `json:"avatar"`
+	CompletionBonus uint   `json:"completion_bonus"`
+	ExemptFromLimit bool   `json:"exempt_from_limit"`
 }
 
 // CreateProject 处理创建项目请求
@@ -109,13 +115,15 @@ func CreateProject(c *gin.Context) {
 
 	// 创建项目模型实例
 	project := model.Project{
-		Name:        req.Name,
-		Description: req.Description,
-		ActivityID:  req.ActivityID,
-		StartDate:   req.StartDate,
-		EndDate:     req.EndDate,
-		Avatar:      req.Avatar,
-		OwnerID:     StudentID,
+		Name:            req.Name,
+		Description:     req.Description,
+		ActivityID:      req.ActivityID,
+		StartDate:       req.StartDate,
+		EndDate:         req.EndDate,
+		Avatar:          req.Avatar,
+		OwnerID:         StudentID,
+		CompletionBonus: req.CompletionBonus,
+		ExemptFromLimit: req.ExemptFromLimit,
 	}
 
 	// 保存到数据库
@@ -220,6 +228,12 @@ func UpdateProject(c *gin.Context) {
 	}
 	if req.Avatar != nil {
 		project.Avatar = *req.Avatar
+	}
+	if req.CompletionBonus != nil {
+		project.CompletionBonus = *req.CompletionBonus
+	}
+	if req.ExemptFromLimit != nil {
+		project.ExemptFromLimit = *req.ExemptFromLimit
 	}
 
 	if err := database.DB.Save(&project).Error; err != nil {
@@ -342,14 +356,16 @@ func ListProjects(c *gin.Context) {
 	var projectResponses []ProjectResponse
 	for _, p := range projects {
 		projectResponses = append(projectResponses, ProjectResponse{
-			ID:          p.ID,
-			Name:        p.Name,
-			Description: p.Description,
-			OwnerID:     p.OwnerID,
-			ActivityID:  p.ActivityID,
-			StartDate:   p.StartDate,
-			EndDate:     p.EndDate,
-			Avatar:      p.Avatar,
+			ID:              p.ID,
+			Name:            p.Name,
+			Description:     p.Description,
+			OwnerID:         p.OwnerID,
+			ActivityID:      p.ActivityID,
+			StartDate:       p.StartDate,
+			EndDate:         p.EndDate,
+			Avatar:          p.Avatar,
+			CompletionBonus: p.CompletionBonus,
+			ExemptFromLimit: p.ExemptFromLimit,
 		})
 	}
 
@@ -367,16 +383,19 @@ type ColumnInProject struct {
 	PointEarned     uint   `json:"point_earned"`      // 每次打卡可获得的积分
 	StartTime       string `json:"start_time"`        // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string `json:"end_time"`          // 每日打卡结束时间，格式为 "HH:MM"
+	Optional        bool   `json:"optional"`          // 特殊栏目，不计入完成所有栏目的判断
 }
 
 type GetProjectResponse struct {
-	ID          uint              `json:"id"`
-	Name        string            `json:"name"`
-	Avatar      string            `json:"avatar"`
-	Description string            `json:"description"`
-	StartDate   int64             `json:"start_date"`
-	EndDate     int64             `json:"end_date"`
-	Columns     []ColumnInProject `json:"columns"`
+	ID              uint              `json:"id"`
+	Name            string            `json:"name"`
+	Avatar          string            `json:"avatar"`
+	Description     string            `json:"description"`
+	StartDate       int64             `json:"start_date"`
+	EndDate         int64             `json:"end_date"`
+	CompletionBonus uint              `json:"completion_bonus"`
+	ExemptFromLimit bool              `json:"exempt_from_limit"`
+	Columns         []ColumnInProject `json:"columns"`
 }
 
 func GetProject(c *gin.Context) {
@@ -416,18 +435,21 @@ func GetProject(c *gin.Context) {
 			PointEarned:     col.PointEarned,
 			StartTime:       col.StartTime,
 			EndTime:         col.EndTime,
+			Optional:        col.Optional,
 		})
 	}
 
 	// 构建项目详情响应
 	projectResponse := GetProjectResponse{
-		ID:          project.ID,
-		Name:        project.Name,
-		Avatar:      project.Avatar,
-		Description: project.Description,
-		StartDate:   project.StartDate,
-		EndDate:     project.EndDate,
-		Columns:     columnResponses,
+		ID:              project.ID,
+		Name:            project.Name,
+		Avatar:          project.Avatar,
+		Description:     project.Description,
+		StartDate:       project.StartDate,
+		EndDate:         project.EndDate,
+		CompletionBonus: project.CompletionBonus,
+		ExemptFromLimit: project.ExemptFromLimit,
+		Columns:         columnResponses,
 	}
 
 	response.Success(c, projectResponse)

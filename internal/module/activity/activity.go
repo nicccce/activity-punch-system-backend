@@ -23,20 +23,24 @@ type Activity struct {
 
 // ActivityCreateReq 定义创建项目请求的结构体
 type ActivityCreateReq struct {
-	Name        string `json:"name" binding:"required"`       // 项目名称
-	Description string `json:"description"`                   // 项目描述
-	StartDate   int64  `json:"start_date" binding:"required"` // 项目开始日期
-	EndDate     int64  `json:"end_date" binding:"required"`   // 项目结束日期
-	Avatar      string `json:"avatar"`                        // 项目封面URL
+	Name            string `json:"name" binding:"required"`       // 项目名称
+	Description     string `json:"description"`                   // 项目描述
+	StartDate       int64  `json:"start_date" binding:"required"` // 项目开始日期
+	EndDate         int64  `json:"end_date" binding:"required"`   // 项目结束日期
+	Avatar          string `json:"avatar"`                        // 项目封面URL
+	DailyPointLimit uint   `json:"daily_point_limit"`             // 每日积分上限，可选，0表示不限制
+	CompletionBonus uint   `json:"completion_bonus"`              // 完成活动所有栏目后的额外奖励积分，可选，0表示无奖励
 }
 
 // ActivityUpdateReq 定义更新项目请求的结构体，使用指针类型支持部分更新
 type ActivityUpdateReq struct {
-	Name        *string `json:"name"`        // 项目名称，可选
-	Description *string `json:"description"` // 项目描述，可选
-	StartDate   *int64  `json:"start_date"`  // 项目开始日期，可选
-	EndDate     *int64  `json:"end_date"`    // 项目结束日期，可选
-	Avatar      *string `json:"avatar"`      // 项目封面URL，可选
+	Name            *string `json:"name"`              // 项目名称，可选
+	Description     *string `json:"description"`       // 项目描述，可选
+	StartDate       *int64  `json:"start_date"`        // 项目开始日期，可选
+	EndDate         *int64  `json:"end_date"`          // 项目结束日期，可选
+	Avatar          *string `json:"avatar"`            // 项目封面URL，可选
+	DailyPointLimit *uint   `json:"daily_point_limit"` // 每日积分上限，可选，0表示不限制
+	CompletionBonus *uint   `json:"completion_bonus"`  // 完成活动所有栏目后的额外奖励积分，可选，0表示无奖励
 }
 
 // CreateActivity 处理创建项目请求
@@ -78,12 +82,14 @@ func CreateActivity(c *gin.Context) {
 	}
 
 	activity := model.Activity{
-		Name:        req.Name,
-		OwnerID:     StudentID,
-		Description: req.Description,
-		StartDate:   req.StartDate,
-		EndDate:     req.EndDate,
-		Avatar:      req.Avatar,
+		Name:            req.Name,
+		OwnerID:         StudentID,
+		Description:     req.Description,
+		StartDate:       req.StartDate,
+		EndDate:         req.EndDate,
+		Avatar:          req.Avatar,
+		DailyPointLimit: req.DailyPointLimit,
+		CompletionBonus: req.CompletionBonus,
 	}
 
 	if err := database.DB.Create(&activity).Error; err != nil {
@@ -240,6 +246,12 @@ func UpdateActivity(c *gin.Context) {
 	}
 	if req.Avatar != nil {
 		activity.Avatar = *req.Avatar
+	}
+	if req.DailyPointLimit != nil {
+		activity.DailyPointLimit = *req.DailyPointLimit
+	}
+	if req.CompletionBonus != nil {
+		activity.CompletionBonus = *req.CompletionBonus
 	}
 
 	if err := database.DB.Save(&activity).Error; err != nil {

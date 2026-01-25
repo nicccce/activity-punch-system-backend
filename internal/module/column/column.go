@@ -11,6 +11,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// 北京时区
+var beijingLocation = time.FixedZone("CST", 8*60*60)
+
+// getTodayStart 获取北京时间今日零点
+func getTodayStart() time.Time {
+	now := time.Now().In(beijingLocation)
+	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, beijingLocation)
+}
+
 type Column struct {
 	Name        string `json:"name" binding:"required"`       // 栏目名称
 	Description string `json:"description"`                   // 栏目描述
@@ -33,6 +42,7 @@ type ColumnCreateReq struct {
 	PointEarned     int    `json:"point_earned"`                  // 每次打卡可获得的积分
 	StartTime       string `json:"start_time"`                    // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string `json:"end_time"`                      // 每日打卡结束时间，格式为 "HH:MM"
+	Optional        bool   `json:"optional"`                      // 特殊栏目，不计入完成所有栏目的判断
 }
 
 // ColumnUpdateReq 定义更新栏目请求的结构体，使用指针类型支持部分更新
@@ -47,20 +57,26 @@ type ColumnUpdateReq struct {
 	PointEarned     *int    `json:"point_earned"`      // 每次打卡可获得的积分
 	StartTime       *string `json:"start_time"`        // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         *string `json:"end_time"`          // 每日打卡结束时间，格式为 "HH:MM"
+	Optional        *bool   `json:"optional"`          // 特殊栏目，不计入完成所有栏目的判断
 }
 
 // ColumnResponse 定义栏目响应结构体（不包含空的Project字段）
 type ColumnResponse struct {
-	ID          uint   `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	OwnerID     string `json:"owner_id"`
-	ProjectID   uint   `json:"project_id"`
-	StartDate   int64  `json:"start_date"`
-	EndDate     int64  `json:"end_date"`
-	Avatar      string `json:"avatar"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	ID              uint   `json:"id"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	OwnerID         string `json:"owner_id"`
+	ProjectID       uint   `json:"project_id"`
+	StartDate       int64  `json:"start_date"`
+	EndDate         int64  `json:"end_date"`
+	Avatar          string `json:"avatar"`
+	DailyPunchLimit int    `json:"daily_punch_limit"`
+	PointEarned     uint   `json:"point_earned"`
+	StartTime       string `json:"start_time"`
+	EndTime         string `json:"end_time"`
+	Optional        bool   `json:"optional"`
+	CreatedAt       int64  `json:"created_at"`
+	UpdatedAt       int64  `json:"updated_at"`
 }
 
 // CreateColumn 处理创建栏目请求
@@ -129,6 +145,7 @@ func CreateColumn(c *gin.Context) {
 		PointEarned:     uint(req.PointEarned),
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
+		Optional:        req.Optional,
 	}
 
 	if err := database.DB.Create(&column).Error; err != nil {
@@ -248,6 +265,9 @@ func UpdateColumn(c *gin.Context) {
 	if req.EndTime != nil {
 		column.EndTime = *req.EndTime
 	}
+	if req.Optional != nil {
+		column.Optional = *req.Optional
+	}
 
 	if err := database.DB.Save(&column).Error; err != nil {
 		log.Error("更新栏目失败", "error", err)
@@ -310,11 +330,11 @@ func GetColumn(c *gin.Context) {
 
 	// 获取认证信息
 	payload, exists := c.Get("payload")
-	var studentID string
+	var userID uint
 	if exists {
 		userPayload, ok := payload.(*jwt.Claims)
 		if ok {
-			studentID = userPayload.StudentID
+			userID = userPayload.ID
 		}
 	}
 
@@ -343,6 +363,7 @@ func GetColumn(c *gin.Context) {
 		"point_earned":      column.PointEarned,
 		"start_time":        column.StartTime,
 		"end_time":          column.EndTime,
+		"optional":          column.Optional,
 		"created_at":        column.CreatedAt.Unix(),
 		"updated_at":        column.UpdatedAt.Unix(),
 		"project":           column.Project,
@@ -351,11 +372,11 @@ func GetColumn(c *gin.Context) {
 		"today_punch_count": 0,
 	}
 
-	// 如果用户已登录，查询今日打卡状态
-	if studentID != "" {
-		today := time.Now().Truncate(24 * time.Hour)
+	// 如果用户已登录，查询今日打卡状态（使用北京时间）
+	if userID > 0 {
+		today := getTodayStart()
 		var todayPunchCount int64
-		database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? AND created_at >= ?", id, studentID, today).Count(&todayPunchCount)
+		database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? AND created_at >= ?", id, userID, today).Count(&todayPunchCount)
 
 		responseData["punched_today"] = todayPunchCount > 0
 		responseData["today_punch_count"] = todayPunchCount
@@ -381,16 +402,21 @@ func ListColumns(c *gin.Context) {
 	var projectResponses []ColumnResponse
 	for _, p := range columns {
 		projectResponses = append(projectResponses, ColumnResponse{
-			ID:          p.ID,
-			Name:        p.Name,
-			Description: p.Description,
-			OwnerID:     p.OwnerID,
-			ProjectID:   p.ProjectID,
-			StartDate:   p.StartDate,
-			EndDate:     p.EndDate,
-			Avatar:      p.Avatar,
-			CreatedAt:   p.CreatedAt.Unix(),
-			UpdatedAt:   p.UpdatedAt.Unix(),
+			ID:              p.ID,
+			Name:            p.Name,
+			Description:     p.Description,
+			OwnerID:         p.OwnerID,
+			ProjectID:       p.ProjectID,
+			StartDate:       p.StartDate,
+			EndDate:         p.EndDate,
+			Avatar:          p.Avatar,
+			DailyPunchLimit: p.DailyPunchLimit,
+			PointEarned:     p.PointEarned,
+			StartTime:       p.StartTime,
+			EndTime:         p.EndTime,
+			Optional:        p.Optional,
+			CreatedAt:       p.CreatedAt.Unix(),
+			UpdatedAt:       p.UpdatedAt.Unix(),
 		})
 	}
 

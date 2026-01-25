@@ -2,6 +2,7 @@ package model
 
 import (
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Punch struct {
@@ -15,15 +16,49 @@ type Punch struct {
 
 // todo: 打卡能被删除吗？
 func (p *Punch) AfterCreate(tx *gorm.DB) (err error) {
-	c := Continuity{FkUserActivity: *(tx.Statement.Context.Value("fk_user_activity").(*FkUserActivity))}
-	if err = tx.Model(&Continuity{}).
-		Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).
-		Find(&c).Error; err == nil {
-		flag := c.Total
-		c.RefreshTo(p.CreatedAt)
-		if flag != 0 || tx.Create(&c).Error != nil {
-			return tx.Model(&Continuity{}).Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).Updates(c).Error
-		}
+	fkUserActivity := tx.Statement.Context.Value("fk_user_activity")
+	if fkUserActivity == nil {
+		return nil // 如果没有传递 fk_user_activity，跳过连续性更新
 	}
-	return
+
+	c := Continuity{FkUserActivity: *(fkUserActivity.(*FkUserActivity))}
+
+	// 使用 FOR UPDATE 锁定特定行，避免并发冲突
+	err = tx.Model(&Continuity{}).
+		Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Find(&c).Error
+
+	if err != nil {
+		return err
+	}
+
+	flag := c.Total
+	c.RefreshTo(p.CreatedAt)
+
+	if flag == 0 {
+		// 首次创建记录
+		if createErr := tx.Create(&c).Error; createErr != nil {
+			// 如果创建失败（可能是并发导致的重复），尝试更新
+			return tx.Model(&Continuity{}).
+				Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).
+				Updates(map[string]interface{}{
+					"current": c.Current,
+					"max":     c.Max,
+					"total":   c.Total,
+					"end_at":  c.EndAt,
+				}).Error
+		}
+		return nil
+	}
+
+	// 更新现有记录
+	return tx.Model(&Continuity{}).
+		Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).
+		Updates(map[string]interface{}{
+			"current": c.Current,
+			"max":     c.Max,
+			"total":   c.Total,
+			"end_at":  c.EndAt,
+		}).Error
 }

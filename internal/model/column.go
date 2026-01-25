@@ -14,6 +14,7 @@ type Column struct {
 	PointEarned     uint    `gorm:"default:0;not null" json:"point_earned" excel:"每次打卡可获得的积分"`    // 每次打卡可获得的积分
 	StartTime       string  `gorm:"type:varchar(10);not null" json:"start_time" excel:"每日打卡开始时间"` // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string  `gorm:"type:varchar(10);not null" json:"end_time" excel:"每日打卡结束时间"`   // 每日打卡结束时间，格式为 "HH:MM"
+	Optional        bool    `gorm:"default:false" json:"optional" excel:"特殊栏目"`                   // 特殊栏目，不计入完成所有栏目的判断
 	// 关联到用户
 	User User `gorm:"foreignKey:OwnerID;references:StudentID" json:"user" excel:"-"` // 关联到用户模型，使用学号作为外键
 }
