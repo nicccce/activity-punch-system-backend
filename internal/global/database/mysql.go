@@ -26,6 +26,8 @@ var autoMigrateModels = []any{
 	&model.TotalScore{},
 	&model.Score{},
 	&model.Continuity{},
+	&model.IntegrityRule{},
+	&model.ContinuityRule{},
 	// 在这里添加其他模型
 }
 

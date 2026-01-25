@@ -271,7 +271,7 @@ func ReviewPunch(c *gin.Context) {
 			//不可重复
 			exist := false
 			if err := database.DB.
-				Raw("SELECT EXISTS(SELECT 1 FROM score WHERE user_id = ? AND punch_id = ? AND deleted_at IS NULL)",
+				Raw("SELECT EXISTS(SELECT 1 FROM score WHERE user_id = ? AND punch_id = ? AND cause = 'Auto' AND deleted_at IS NULL)",
 					userPayload.ID, punch.ID).
 				Scan(&exist).Error; err != nil {
 				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分查重时失败", Data: res})
@@ -296,13 +296,13 @@ func ReviewPunch(c *gin.Context) {
 				}
 				if err := tx.Create(&score).Error; err != nil {
 					log.Warn("数据库 自动打分插入分数记录时失败", "err", err.Error())
-					c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败", Data: res})
+					c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败[数据库错误]", Data: res})
 					return
 				} else {
 					res.AddedScore = req.Score
+
 				}
 			}
-
 		}
 	} else if req.ClearScore && req.Status == 2 { //扣粪!
 		var scores []model.Score

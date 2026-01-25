@@ -10,10 +10,11 @@ import (
 
 func Auth(minRoleID int) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// if config.Get().Mode == "debug" {
-		// 	c.Next()
-		// 	return
-		// }
+		//if config.Get().Mode == "debug" {
+		//   todo
+		//	c.Next()
+		//	return
+		//}
 		// 获取 Authorization 头
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
