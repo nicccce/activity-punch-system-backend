@@ -38,25 +38,29 @@ type rank struct {
 	model.TotalScore
 }
 
-func selectRank(activityID uint, offset, limit int) ([]rank, error) {
+func selectRank(activityID uint, offset, limit int) ([]rank, int64, error) {
 	var ranks []rank
-	err := database.DB.Model(&model.TotalScore{}).
+	var total int64
+	wrapper := database.DB.Model(&model.TotalScore{}).Where("activity_id = ?", activityID)
+	if err := wrapper.Count(&total).Error; err != nil {
+		log.Error("数据库 查询活动排名失败", "error", err.Error())
+		return nil, 0, err
+	}
+	if err := wrapper.
 		Select(`
             user_id,
             score,
             RANK() OVER (ORDER BY score DESC) AS ranks
         `).
 		Preload("User").
-		Where("activity_id = ?", activityID).
 		Order("ranks ASC").
 		Limit(limit).
 		Offset(offset).
-		Find(&ranks).Error
-	if err != nil {
+		Find(&ranks).Error; err != nil {
 		log.Error("数据库 查询活动排名失败", "error", err.Error())
-		return nil, err
+		return nil, 0, err
 	}
-	return ranks, nil
+	return ranks, total, nil
 }
 
 type briefResult struct {

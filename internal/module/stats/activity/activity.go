@@ -107,7 +107,7 @@ func Rank(c *gin.Context) {
 
 		}
 	}
-	result, err := selectRank(a.ID, offset, limit)
+	result, total, err := selectRank(a.ID, offset, limit)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, response.ErrNotFound)
@@ -116,7 +116,11 @@ func Rank(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, gin.H{
+		"total":     total,
+		"count":     len(result),
+		"rank_list": result,
+	})
 }
 
 func Detail(c *gin.Context) {
