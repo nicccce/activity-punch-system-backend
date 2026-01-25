@@ -332,7 +332,6 @@ func ListProjects(c *gin.Context) {
 	var projects []model.Project
 	// 查询项目时，同时确保关联的活动未被删除
 	if err := database.DB.Joins("JOIN activity ON activity.id = project.activity_id AND activity.deleted_at IS NULL").
-		Where("project.owner_id = ?", StudentID).
 		Find(&projects).Error; err != nil {
 		log.Error("查询项目列表失败", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))

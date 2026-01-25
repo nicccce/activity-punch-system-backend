@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"activity-punch-system/config"
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"strings"

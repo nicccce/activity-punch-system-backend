@@ -114,6 +114,7 @@ func CreateColumn(c *gin.Context) {
 	if req.PointEarned <= 0 {
 		log.Warn("积分必须大于0!", "point_earned", req.PointEarned)
 		response.Fail(c, response.ErrInvalidRequest.WithTips("积分必须大于0!"))
+		return
 	}
 	// 创建新的栏目模型
 	column := model.Column{
@@ -365,24 +366,11 @@ func GetColumn(c *gin.Context) {
 
 // ListColumns 处理获取栏目列表请求
 func ListColumns(c *gin.Context) {
-	// 获取认证信息
-	payload, exists := c.Get("payload")
-	if !exists {
-		response.Fail(c, response.ErrUnauthorized)
-		return
-	}
-	userPayload, ok := payload.(*jwt.Claims)
-	if !ok {
-		response.Fail(c, response.ErrUnauthorized)
-		return
-	}
-	StudentID := userPayload.StudentID
 
 	var columns []model.Column
 	// 查询栏目，确保关联的项目和活动未被删除
 	if err := database.DB.Joins("JOIN project ON project.id = column.project_id AND project.deleted_at IS NULL").
 		Joins("JOIN activity ON activity.id = project.activity_id AND activity.deleted_at IS NULL").
-		Where("column.owner_id = ?", StudentID).
 		Preload("Project").Preload("User").
 		Find(&columns).Error; err != nil {
 		log.Error("查询栏目列表失败", "error", err)
