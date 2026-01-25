@@ -15,7 +15,7 @@ type Continuity struct {
 }
 type FkUserActivity struct {
 	UserID     uint `gorm:"not null;index:idx_user_activity,unique" json:"-"`
-	ActivityID uint `gorm:"not null;index:idx_user_activity,unique" json:"-"`
+	ActivityID uint `gorm:"not null;index:idx_user_activity,unique;index:idx_activity_score,priority:1" json:"-"`
 }
 
 // RefreshTo 仅仅是更新连续天数
