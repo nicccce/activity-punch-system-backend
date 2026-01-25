@@ -131,9 +131,9 @@ func InsertPunch(c *gin.Context) {
 		Content:  req.Content,
 		Status:   0, // 默认待审核
 	}
-	tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserActivity{
-		ActivityID: column.Project.Activity.ID,
-		UserID:     userPayload.ID,
+	tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserColumn{
+		ColumnID: column.Project.Activity.ID,
+		UserID:   userPayload.ID,
 	}))
 	if err := tx.Create(punch).Error; err != nil {
 		log.Error("插入打卡记录失败", "error", err)
@@ -163,15 +163,15 @@ type ReviewReq struct {
 	PunchID    int    `json:"punch_id" binding:"required"`
 	Status     int    `json:"status" binding:"required"` // 1: 通过, 2: 拒绝
 	Special    bool   `json:"special"`                   // 是否特殊打分
-	Score      int    `json:"score"`
+	Score      uint   `json:"score"`
 	Cause      string `json:"cause"`
 	MarkedBy   string `json:"marked_by"`   // 审核人
 	ClearScore bool   `json:"clear_score"` // 是否清除之前这条punch的分数(如果0或2的话
 }
 type reviewRes struct {
-	PunchID    int `json:"punch_id"`
-	Status     int `json:"status"`
-	AddedScore int `json:"added_score"`
+	PunchID    int  `json:"punch_id"`
+	Status     int  `json:"status"`
+	AddedScore uint `json:"added_score"`
 }
 
 // ReviewPunch 审核打卡记录
@@ -215,33 +215,48 @@ func ReviewPunch(c *gin.Context) {
 		response.Fail(c, response.ErrNotFound.WithTips("打卡记录不存在"))
 		return
 	}
-
-	// 更新审核状态
-	punch.Status = req.Status
-	if err := database.DB.Save(&punch).Error; err != nil {
-		log.Error("审核打卡记录失败", "error", err)
-		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+	if punch.Status != 1 && req.Special {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("此条记录不是通过状态，无法特殊打分, 请先批准通过"))
 		return
 	}
+	var activityID, projectID uint
+	if err := database.DB.Table("column").Select("project_id").Where("id = ?", punch.ColumnID).Scan(&(projectID)).Error; err != nil {
+		c.JSON(206, response.ResponseBody{Code: 206, Msg: "审核失败 未找到所属的project[数据库错误]"})
+		return
+	}
+	if err := database.DB.Table("project").Select("activity_id").Where("id = ?", projectID).Scan(&(activityID)).Error; err != nil {
+		c.JSON(206, response.ResponseBody{Code: 206, Msg: "审核失败 未找到所属的activity[数据库错误]"})
+		return
+	}
+	// 更新审核状态
+	if punch.Status != req.Status {
+		if req.Status == 1 {
+			if err := punch.UpdateContinuity(database.DB, activityID, projectID); err != nil {
+				c.JSON(206, response.ResponseBody{Code: 206, Msg: "审核失败 更新连续打卡失败[数据库错误]"})
+				return
+			}
+		}
+		punch.Status = req.Status
+		if err := database.DB.Save(&punch).Error; err != nil {
+			log.Error("审核打卡记录失败", "error", err)
+			response.Fail(c, response.ErrDatabase.WithOrigin(err))
+			return
+		}
+	}
+
 	res := reviewRes{
 		PunchID:    req.PunchID,
 		Status:     req.Status,
 		AddedScore: 0,
 	}
 	//获取方式可优化(优化为前端传来
-	var activityID uint
-	database.DB.Table("column").Select("project_id").Where("id = ?", punch.ColumnID).Scan(&(activityID))
-	if err := database.DB.Table("project").Select("activity_id").Where("id = ?", activityID).Scan(&(activityID)).Error; err != nil {
-		c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败 未找到所属的activity", Data: res})
-		return
-	}
-	tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserActivity{
-		ActivityID: activityID,
-		UserID:     userPayload.ID,
-	}))
+
+	//tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserColumn{
+	//	ColumnID: activityID,
+	//	UserID:   userPayload.ID,
+	//}))
 	// 大粪！通过才考虑打分
 	if req.Status == 1 {
-
 		if req.Special {
 			if req.Score <= 0 {
 				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败 分数不能小于1", Data: res})
@@ -258,7 +273,7 @@ func ReviewPunch(c *gin.Context) {
 				PunchID:  punch.ID,
 				ColumnID: uint(punch.ColumnID),
 			}
-			if err := tx.Create(&score).Error; err != nil {
+			if err := database.DB.Create(&score).Error; err != nil {
 				log.Warn("数据库 插入自定义打分记录时失败", "err", err.Error())
 				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败", Data: res})
 				return
@@ -267,6 +282,7 @@ func ReviewPunch(c *gin.Context) {
 			}
 
 		} else {
+
 			//自动打分
 			//不可重复
 			exist := false
@@ -281,7 +297,7 @@ func ReviewPunch(c *gin.Context) {
 				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 自动打分失败,因为此前已经打过分,若需要加分,尝试special=true", Data: res})
 				return
 			}
-			if err := tx.Table("column").Select("point_earned").Where("id = ?", punch.ColumnID).Scan(&(req.Score)).Error; err != nil {
+			if err := database.DB.Table("column").Select("point_earned").Where("id = ?", punch.ColumnID).Scan(&(req.Score)).Error; err != nil {
 				log.Warn("数据库 自动打分时获取column设置的分数时失败", "err", err.Error())
 				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败", Data: res})
 				return
@@ -294,30 +310,38 @@ func ReviewPunch(c *gin.Context) {
 					PunchID:  punch.ID,
 					ColumnID: uint(punch.ColumnID),
 				}
-				if err := tx.Create(&score).Error; err != nil {
+				if err := database.DB.Create(&score).Error; err != nil {
 					log.Warn("数据库 自动打分插入分数记录时失败", "err", err.Error())
 					c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败[数据库错误]", Data: res})
 					return
 				} else {
 					res.AddedScore = req.Score
 
+					//自动打分成功触发额外加分规则
+					rule := model.Rule{ActivityID: activityID}
+					as, err := rule.Execute(database.DB, &punch)
+					if err != nil {
+						log.Warn("触发额外加分规则时失败", "err", err.Error())
+						c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 已自动打分 但触发额外加分规则失败", Data: res})
+					}
+					res.AddedScore += as
 				}
 			}
 		}
 	} else if req.ClearScore && req.Status == 2 { //扣粪!
 		var scores []model.Score
-		if err := tx.Where("user_id = ? AND punch_id = ?", userPayload.ID, punch.ID).Find(&scores).Error; err != nil {
+		if err := database.DB.Where("user_id = ? AND punch_id = ?", userPayload.ID, punch.ID).Find(&scores).Error; err != nil {
 			log.Warn("数据库 扣分时获取score记录失败", "err", err.Error())
 			c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但扣分失败", Data: res})
 			return
 		}
 		for _, s := range scores {
-			if err := tx.Delete(&s).Error; err != nil {
+			if err := database.DB.Delete(&s).Error; err != nil {
 				log.Warn("数据库 扣分时删除score记录发生错误!", "err", err.Error())
 				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但扣分未完全完成", Data: res})
 				return
 			}
-			res.AddedScore -= int(s.Count)
+			res.AddedScore -= s.Count
 		}
 
 	}

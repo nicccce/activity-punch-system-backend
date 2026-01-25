@@ -27,9 +27,9 @@ func (s *Score) AfterDelete(tx *gorm.DB) (err error) {
 }
 
 func afterScoreChange(s *Score, tx *gorm.DB, sign bool) (err error) {
-	t := TotalScore{FkUserActivity: *(tx.Statement.Context.Value("fk_user_activity").(*FkUserActivity))}
+	t := TotalScore{FkUserColumn: *(tx.Statement.Context.Value("fk_user_activity").(*FkUserColumn))}
 	if err = tx.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?",
-		t.ActivityID, t.UserID).Find(&t).Error; err == nil {
+		t.ColumnID, t.UserID).Find(&t).Error; err == nil {
 		flag := t.Score
 		if sign {
 			t.Score += s.Count
@@ -37,7 +37,7 @@ func afterScoreChange(s *Score, tx *gorm.DB, sign bool) (err error) {
 			t.Score -= s.Count
 		}
 		if flag != 0 || tx.Create(&t).Error != nil {
-			return tx.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?", t.ActivityID, t.UserID).Updates(t).Error
+			return tx.Model(&TotalScore{}).Where("activity_id = ? AND user_id = ?", t.ColumnID, t.UserID).Updates(t).Error
 		}
 	}
 	return
@@ -57,8 +57,8 @@ type partialColumnForScore struct {
 }
 type partialProjectForScore struct {
 	ID uint `gorm:"primaryKey" json:"id"`
-	//Activity   partialActivityForScore `gorm:"foreignKey:ActivityID;references:ID" json:"activity"`
-	//ActivityID uint                    `gorm:"not null" json:"-"`
+	//Activity   partialActivityForScore `gorm:"foreignKey:ColumnID;references:ID" json:"activity"`
+	//ColumnID uint                    `gorm:"not null" json:"-"`
 	Name string `gorm:"type:varchar(100);not null" json:"name"`
 }
 type partialActivityForScore struct {

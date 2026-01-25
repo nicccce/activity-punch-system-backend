@@ -27,7 +27,7 @@ type partialColumnForStar struct {
 }
 type partialProjectForStar struct {
 	ID         int                    `gorm:"primaryKey" json:"id"`
-	Activity   partialActivityForStar `gorm:"foreignKey:ActivityID;references:ID" json:"activity"`
+	Activity   partialActivityForStar `gorm:"foreignKey:ColumnID;references:ID" json:"activity"`
 	ActivityID uint                   `gorm:"not null" json:"-"`
 	Name       string                 `gorm:"type:varchar(100);not null" json:"name"`
 }

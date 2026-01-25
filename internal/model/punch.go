@@ -14,15 +14,44 @@ type Punch struct {
 }
 
 // todo: 打卡能被删除吗？
-func (p *Punch) AfterCreate(tx *gorm.DB) (err error) {
-	c := Continuity{FkUserActivity: *(tx.Statement.Context.Value("fk_user_activity").(*FkUserActivity))}
-	if err = tx.Model(&Continuity{}).
-		Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).
-		Find(&c).Error; err == nil {
-		flag := c.Total
-		c.RefreshTo(p.CreatedAt)
-		if flag != 0 || tx.Create(&c).Error != nil {
-			return tx.Model(&Continuity{}).Where("activity_id = ? AND user_id = ?", c.ActivityID, c.UserID).Updates(c).Error
+func (p *Punch) UpdateContinuity(tx *gorm.DB, activityID, projectID uint) (err error) {
+	var (
+		cc ColumnContinuity
+		pc ProjectContinuity
+		ac ActivityContinuity
+	)
+	day := p.CreatedAt.Unix() / (24 * 60 * 6)
+	if err = tx.Model(&ColumnContinuity{}).
+		Where("column_id = ? AND user_id = ?", p.ColumnID, p.UserID).
+		Find(&cc).Error; err == nil {
+		flag := cc.Total
+		cc.RefreshTo(day)
+		if flag != 0 || tx.Create(&cc).Error != nil {
+			if err = tx.Model(&ColumnContinuity{}).Where("column_id = ? AND user_id = ?", cc.ColumnID, cc.UserID).Updates(cc).Error; err != nil {
+				return
+			}
+		}
+	}
+	if err = tx.Model(&ProjectContinuity{}).
+		Where("project_id = ? AND user_id = ?", projectID, p.UserID).
+		Find(&pc).Error; err == nil {
+		flag := pc.Total
+		pc.RefreshTo(day)
+		if flag != 0 || tx.Create(&pc).Error != nil {
+			if err = tx.Model(&ProjectContinuity{}).Where("project_id = ? AND user_id = ?", pc.ProjectID, pc.UserID).Updates(pc).Error; err != nil {
+				return
+			}
+		}
+	}
+	if err = tx.Model(&ActivityContinuity{}).
+		Where("activity_id = ? AND user_id = ?", activityID, p.UserID).
+		Find(&ac).Error; err == nil {
+		flag := ac.Total
+		ac.RefreshTo(day)
+		if flag != 0 || tx.Create(&ac).Error != nil {
+			if err = tx.Model(&ActivityContinuity{}).Where("activity_id = ? AND user_id = ?", ac.ActivityID, ac.UserID).Updates(ac).Error; err != nil {
+				return
+			}
 		}
 	}
 	return

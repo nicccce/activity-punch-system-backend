@@ -96,9 +96,9 @@ func Rank(c *gin.Context) {
 				Columns:   []clause.Column{{Name: "user_id"}, {Name: "activity_id"}},
 				DoUpdates: clause.AssignmentColumns([]string{"score"}),
 			}).Create(&model.TotalScore{
-				FkUserActivity: model.FkUserActivity{
-					UserID:     id,
-					ActivityID: a.ID,
+				FkUserColumn: model.FkUserColumn{
+					UserID:   id,
+					ColumnID: a.ID,
 				},
 				Score: score,
 			}).Error; err != nil {

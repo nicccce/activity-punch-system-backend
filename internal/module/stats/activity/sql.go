@@ -63,11 +63,11 @@ type briefResult struct {
 	Rank              int  `gorm:"column:ranks" json:"rank"`
 	TodayPuncherCount uint `json:"today_punched_user_count"`
 	TotalScore        uint `gorm:"column:ts" json:"total_score"`
-	model.Continuity
+	model.ActivityContinuity
 }
 
 func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result *briefResult) error {
-	var continuityResult model.Continuity
+	var continuityResult model.ActivityContinuity
 	if err := database.DB.Table("continuity").Where("activity_id = ? AND user_id = ?", activityID, userID).
 		Scan(&continuityResult).Error; err != nil {
 		log.Error("数据库 查询continuity失败", "error", err.Error())
@@ -93,7 +93,7 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 		log.Error("数据库 查询punch获得当天已经打卡此活动人数失败", "error", err.Error())
 		return err
 	}
-	result.Continuity = continuityResult
+	result.ActivityContinuity = continuityResult
 	result.TotalScore = totalScoreResult.TotalScore
 	result.Rank = totalScoreResult.Rank
 	result.TodayPuncherCount = todayPuncherCount

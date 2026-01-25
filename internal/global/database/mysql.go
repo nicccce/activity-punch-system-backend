@@ -25,7 +25,9 @@ var autoMigrateModels = []any{
 	&model.Star{},
 	&model.TotalScore{},
 	&model.Score{},
-	&model.Continuity{},
+	&model.ActivityContinuity{},
+	&model.ColumnContinuity{},
+	&model.ProjectContinuity{},
 	&model.IntegrityRule{},
 	&model.ContinuityRule{},
 	// 在这里添加其他模型
