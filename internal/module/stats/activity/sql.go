@@ -112,12 +112,17 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 	}
 
 	var totalScoreResult briefResult
-	if err := database.DB.Table("total_score").
-		Select(`
+	if err := database.DB.
+		Table("(?) as t", database.DB.
+			Table("total_score").
+			Select(`
+			user_id,
 			score AS ts,
-            RANK() OVER (ORDER BY score DESC) AS ranks
-        `).
-		Where("activity_id = ? AND user_id = ?", activityID, userID).
+			RANK() OVER (ORDER BY score DESC) AS ranks
+		`).
+			Where("activity_id = ?", activityID),
+		).
+		Where("user_id = ?", userID).
 		Scan(&totalScoreResult).Error; err != nil {
 		log.Error("数据库 查询total_score失败", "error", err.Error())
 		return err
