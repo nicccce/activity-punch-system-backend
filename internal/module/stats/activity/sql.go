@@ -34,7 +34,7 @@ func getColumnIds(id uint) (columnIDs []uint, err error) {
 }
 
 type rank struct {
-	Rank uint `gorm:"column:ranks" json:"rank"`
+	Rank uint `gorm:"column:ranks" json:"rank" `
 	model.TotalScore
 }
 
@@ -61,6 +61,39 @@ func selectRank(activityID uint, offset, limit int) ([]rank, int64, error) {
 		return nil, 0, err
 	}
 	return ranks, total, nil
+}
+
+type activityRankInExcel struct {
+	Rank      uint   `gorm:"column:ranks" json:"rank" excel:"排名"`
+	NickName  string `gorm:"column:nick_name" json:"nick_name" excel:"昵称"`
+	Score     uint   `gorm:"not null" json:"score" excel:"分数"`
+	StudentID string `gorm:"column:student_id" json:"student_id" excel:"学号"`
+	ID        uint   `gorm:"column:id" json:"user_id" excel:"用户ID"`
+	College   string `gorm:"column:college" json:"college" excel:"校区"`
+	Major     string `gorm:"column:major" json:"major" excel:"专业"`
+	Grade     string `gorm:"column:grade" json:"grade" excel:"年级"`
+}
+
+func selectActivityRankInExcel(activityID uint) ([]activityRankInExcel, error) {
+	var ranks []activityRankInExcel
+	if err := database.DB.Table("total_score ts").
+		Select(`
+			u.id,
+        	u.student_id,
+        	u.nick_name,
+        	u.college,
+        	u.major,
+			u.grade,
+			ts.score,
+            RANK() OVER (ORDER BY ts.score DESC) AS ranks
+        `).
+		Joins("JOIN user u ON u.id = ts.user_id").
+		Order("ranks ASC").
+		Where("ts.activity_id = ?", activityID).
+		Scan(&ranks).Error; err != nil {
+		return nil, err
+	}
+	return ranks, nil
 }
 
 type briefResult struct {
