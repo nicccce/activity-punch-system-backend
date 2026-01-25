@@ -193,15 +193,27 @@ func Export(c *gin.Context) {
 	if !ok {
 		return
 	}
+	f := excelize.NewFile()
+	defer tools.PanicOnErr(f.Close())
+
+	ranks, err := selectActivityRankInExcel(a.ID)
+	if err != nil {
+		log.Error("数据库 查询活动排名失败", "error", err.Error())
+		response.Fail(c, response.ErrDatabase)
+		return
+	}
+
+	if err := tools.ExportToExcel(f, "活动"+a.Name+"得分排名", ranks); err != nil {
+		log.Error("导出excel错误", "error", err)
+		response.Fail(c, response.ErrServerInternal)
+		return
+	}
 	projects := []model.Project{}
 	if err := database.DB.Model(&model.Project{}).Where("activity_id = ? AND deleted_at IS NULL", a.ID).Find(&projects).Error; err != nil {
 		log.Error("查询 project 表错误", "error", err)
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
-	f := excelize.NewFile()
-
-	defer tools.PanicOnErr(f.Close())
 	if err := tools.ExportToExcel(f, "活动"+a.Name+"下的项目", projects); err != nil {
 		log.Error("导出excel错误", "error", err)
 		response.Fail(c, response.ErrServerInternal)

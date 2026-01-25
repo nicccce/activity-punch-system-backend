@@ -5,8 +5,8 @@ package model
 // mysql你最好是A好了
 type TotalScore struct {
 	FkUserActivity
-	Score uint                     `gorm:"not null" json:"score"`
-	User  partialUserForTotalScore `gorm:"foreignKey:UserID;references:ID" json:"user"`
+	Score uint                     `gorm:"not null" json:"score" excel:"分数"`
+	User  partialUserForTotalScore `gorm:"foreignKey:UserID;references:ID" json:"user" excel:"-"`
 }
 
 // 防前端
