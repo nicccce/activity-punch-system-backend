@@ -1,7 +1,9 @@
 package user
 
 import (
+	"activity-punch-system/config"
 	"activity-punch-system/internal/global/logger"
+	sduauth "github.com/nicccce/golang-sdu-auth"
 	"log/slog"
 )
 
@@ -13,8 +15,11 @@ func (u *ModuleUser) GetName() string {
 	return "User"
 }
 
+var casClient *sduauth.CASClient
+
 func (u *ModuleUser) Init() {
 	log = logger.New("User")
+	casClient, _ = sduauth.NewCASClient(config.Get().SduLogin.CasKey)
 }
 
 func selfInit() {

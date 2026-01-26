@@ -12,7 +12,7 @@ Domain: "127.0.0.1"
 
 # API 前缀，指定所有 API 端点的公共路径
 # 例如 "/" 表示根路径，"/api" 表示所有 API 以 /api 开头
-Prefix: "/admin/api/"
+Prefix: "/api/"
 
 # 运行模式，控制应用程序的行为
 # 可选值: "debug"（开发模式，启用详细日志并输出到控制台）或 "release"（生产模式，优化性能）
@@ -80,7 +80,5 @@ jwt:
 
 #配置山大统一认证
 SduLogin:
-    #通过cas或者spider或者default账号密码登录
-    mode: "default"
     #用于cas登录的key
     cas_key: "cas_key"

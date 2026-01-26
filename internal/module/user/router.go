@@ -21,6 +21,10 @@ func (u *ModuleUser) InitRouter(r *gin.RouterGroup) {
 	// 注册注册端点，处理用户注册请求
 	userGroup.POST("/register", Register)
 
+	userGroup.GET("/cas/login")
+
+	userGroup.GET("/cas/callback", casCallback)
+
 	userGroup.Use(middleware.Auth(0))
 	{
 		// 注册获取用户信息端点，处理修改密码请求

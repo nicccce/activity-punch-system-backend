@@ -6,10 +6,13 @@ import (
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
-	"activity-punch-system/internal/protected/sduLogin"
 	"activity-punch-system/tools"
+	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
@@ -22,94 +25,96 @@ type User struct {
 	Password  string `json:"password" binding:"required"`   // 密码，登录时验证，注册时加密
 }
 
+const callbackURL = "https://daka.sduonline.cn/api/cas/callback"
+
 // Login 处理用户登录请求
 func Login(c *gin.Context) {
 	// 调用 sduLogin 进行登录验证
 
-	switch config.Get().SduLogin.Mode {
-	case "cas":
-		// 如果是 CAS 模式，调用 CasLogin 并返回其结果
-		casLoginResult := sduLogin.CasLogin(c)
-		if !casLoginResult.Success {
-			if casLoginResult.RedirectUrl != "" {
-				c.Redirect(http.StatusFound, casLoginResult.RedirectUrl)
-				return
-			}
-			response.Fail(c, response.ErrInvalidRequest.WithTips(casLoginResult.Message))
-			return
-		}
-		if casLoginResult.StudentID == "" {
-			response.Fail(c, response.ErrInvalidRequest.WithTips("用户信息获取失败"))
-			return
-		}
-		user, token, err := handleLoginSuccess(casLoginResult.StudentID)
-		if err != nil {
-			response.Fail(c, err)
-			return
-		}
-		if casLoginResult.RedirectUrl != "" {
-			if strings.Contains(casLoginResult.RedirectUrl, "?") {
-				c.Redirect(http.StatusFound, casLoginResult.RedirectUrl+"&token="+*token)
-			} else {
-				c.Redirect(http.StatusFound, casLoginResult.RedirectUrl+"?token="+*token)
-			}
-			return
-		}
-		response.Success(c, map[string]interface{}{
-			"token":      *token,
-			"student_id": user.StudentID,
-			"role_id":    user.RoleID,
-		})
-	case "spider":
-		response.Fail(c, response.ErrInvalidRequest.WithTips("爬虫登录模式暂不支持"))
-	case "default":
-		// 定义请求结构体并绑定 JSON 数据
-		var req User
-		if err := c.ShouldBindJSON(&req); err != nil {
-			log.Error("绑定登录请求失败", "error", err, "student_id", req.StudentID)
-			response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
-			return
-		}
-
-		// 查询用户是否存在
-		var user model.User
-		err := database.DB.Where("student_id = ?", req.StudentID).First(&user).Error
-		switch {
-		case errors.Is(err, gorm.ErrRecordNotFound):
-			log.Warn("用户不存在", "student_id", req.StudentID)
-			response.Fail(c, response.ErrNotFound.WithTips("用户不存在"))
-			return
-		case err != nil:
-			log.Error("数据库查询失败", "error", err, "student_id", req.StudentID)
-			response.Fail(c, response.ErrDatabase.WithOrigin(err))
-			return
-		}
-
-		// 验证密码
-		if !tools.PasswordCompare(req.Password, user.Password) {
-			log.Warn("密码错误", "student_id", req.StudentID)
-			response.Fail(c, response.ErrInvalidPassword)
-			return
-		}
-
-		// 记录登录成功的日志
-		log.Info("用户登录成功",
-			"student_id", user.StudentID,
-			"role_id", user.RoleID)
-
-		// 生成 JWT 令牌并返回用户信息
-		response.Success(c, map[string]interface{}{
-			"token": jwt.CreateToken(jwt.Payload{
-				ID:        user.ID,
-				StudentID: user.StudentID,
-				RoleID:    user.RoleID,
-			}),
-			"student_id": user.StudentID,
-			"role_id":    user.RoleID,
-		})
-	default:
-		response.Fail(c, response.ErrInvalidRequest.WithTips("登录模式错误"))
+	// switch config.Get().SduLogin.Mode {
+	// case "cas":
+	// 	// 如果是 CAS 模式，调用 CasLogin 并返回其结果
+	// 	casLoginResult := sduLogin.CasLogin(c)
+	// 	if !casLoginResult.Success {
+	// 		if casLoginResult.RedirectUrl != "" {
+	// 			c.Redirect(http.StatusFound, casLoginResult.RedirectUrl)
+	// 			return
+	// 		}
+	// 		response.Fail(c, response.ErrInvalidRequest.WithTips(casLoginResult.Message))
+	// 		return
+	// 	}
+	// 	if casLoginResult.StudentID == "" {
+	// 		response.Fail(c, response.ErrInvalidRequest.WithTips("用户信息获取失败"))
+	// 		return
+	// 	}
+	// 	user, token, err := handleLoginSuccess(casLoginResult.StudentID)
+	// 	if err != nil {
+	// 		response.Fail(c, err)
+	// 		return
+	// 	}
+	// 	if casLoginResult.RedirectUrl != "" {
+	// 		if strings.Contains(casLoginResult.RedirectUrl, "?") {
+	// 			c.Redirect(http.StatusFound, casLoginResult.RedirectUrl+"&token="+*token)
+	// 		} else {
+	// 			c.Redirect(http.StatusFound, casLoginResult.RedirectUrl+"?token="+*token)
+	// 		}
+	// 		return
+	// 	}
+	// 	response.Success(c, map[string]interface{}{
+	// 		"token":      *token,
+	// 		"student_id": user.StudentID,
+	// 		"role_id":    user.RoleID,
+	// 	})
+	// case "spider":
+	// 	response.Fail(c, response.ErrInvalidRequest.WithTips("爬虫登录模式暂不支持"))
+	// case "default":
+	// 定义请求结构体并绑定 JSON 数据
+	var req User
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Error("绑定登录请求失败", "error", err, "student_id", req.StudentID)
+		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
+		return
 	}
+
+	// 查询用户是否存在
+	var user model.User
+	err := database.DB.Where("student_id = ?", req.StudentID).First(&user).Error
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		log.Warn("用户不存在", "student_id", req.StudentID)
+		response.Fail(c, response.ErrNotFound.WithTips("用户不存在"))
+		return
+	case err != nil:
+		log.Error("数据库查询失败", "error", err, "student_id", req.StudentID)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 验证密码
+	if !tools.PasswordCompare(req.Password, user.Password) {
+		log.Warn("密码错误", "student_id", req.StudentID)
+		response.Fail(c, response.ErrInvalidPassword)
+		return
+	}
+
+	// 记录登录成功的日志
+	log.Info("用户登录成功",
+		"student_id", user.StudentID,
+		"role_id", user.RoleID)
+
+	// 生成 JWT 令牌并返回用户信息
+	response.Success(c, map[string]interface{}{
+		"token": jwt.CreateToken(jwt.Payload{
+			ID:        user.ID,
+			StudentID: user.StudentID,
+			RoleID:    user.RoleID,
+		}),
+		"student_id": user.StudentID,
+		"role_id":    user.RoleID,
+	})
+	// default:
+	// 	response.Fail(c, response.ErrInvalidRequest.WithTips("登录模式错误"))
+	// }
 }
 
 func handleLoginSuccess(studentID string) (*model.User, *string, error) {
@@ -235,7 +240,7 @@ func Register(c *gin.Context) {
 		StudentID: req.StudentID,
 		Password:  encryptedPassword,
 		NickName:  req.NickName,
-		RoleID:    1, // 默认角色 ID，可根据需求调整
+		RoleID:    0, // 默认角色 ID，可根据需求调整
 	}
 
 	// 保存用户到数据库
@@ -411,4 +416,161 @@ func updateUser(c *gin.Context) {
 		return
 	}
 	response.Success(c, nil)
+}
+
+func casLogin(c *gin.Context) {
+	loginURL, err := casClient.BuildCASProxyLoginURL(callbackURL)
+	if err != nil {
+		log.Error("CAS 登录失败", "error", err)
+		response.Fail(c, response.ErrServerInternal.WithOrigin(err))
+		return
+	}
+	c.Redirect(http.StatusFound, loginURL)
+}
+
+type UserDataFrontend struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Role      string    `json:"role"`
+	StudentID string    `json:"student_id"`
+	RoleID    int       `json:"role_id"`
+	NickName  string    `json:"nick_name"`
+	Avatar    string    `json:"avatar"`
+	College   string    `json:"college"`
+	Major     string    `json:"major"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// State 应用状态结构体
+type State struct {
+	User       UserDataFrontend `json:"user"`
+	Token      string           `json:"token"`
+	IsLoggedIn bool             `json:"isLoggedIn"`
+}
+
+// AppData 完整的应用数据结构体
+type AppData struct {
+	State   State `json:"state"`
+	Version int   `json:"version"`
+}
+
+var roleNames = map[int]string{
+	0: "user",
+	1: "admin",
+}
+
+func casCallback(c *gin.Context) {
+	token := c.Param("token")
+	if token == "" {
+		log.Error("CAS 回调失败", "token 不能为空")
+		response.Fail(c, response.ErrInvalidRequest.WithTips("token 不能为空"))
+		return
+	}
+	// 验证 token
+	result, err := casClient.ValidateToken(token)
+	if err != nil {
+		panic(err)
+	}
+
+	if !result.Success {
+		log.Error("CAS 回调失败", "token 验证失败")
+		response.Fail(c, response.ErrInvalidRequest.WithTips("token 验证失败"))
+		return
+	}
+
+	if result.CasID == "" {
+		log.Error("CAS 回调失败", "cas_id 为空")
+		response.Fail(c, response.ErrInvalidRequest.WithTips("cas_id 为空"))
+		return
+	}
+
+	// 处理验证结果
+	if result.SessionData == nil {
+		log.Error("CAS 回调失败", "session_data 为空", "cas_id", result.CasID)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("session_data 为空"))
+		return
+	}
+
+	var user model.User
+	// 查询用户
+	err = database.DB.Where("student_id = ?", result.CasID).First(&user).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		//首次登录，注册用户
+		user.StudentID = result.CasID
+
+		data, ok := result.SessionData.(map[string]string)
+
+		if !ok {
+			log.Error("CAS 回调失败", "session_data 类型错误", "cas_id", result.CasID)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("session_data 类型错误"))
+			return
+		}
+
+		name, exists := data["name"]
+		if !exists {
+			log.Error("CAS 回调失败", "姓名 为空", "cas_id", result.CasID)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("姓名 为空"))
+			return
+		}
+		user.Name = name
+		user.RoleID = 0
+		user.NickName = fmt.Sprintf("用户%s", user.StudentID)
+
+		if err := database.DB.Create(&user).Error; err != nil {
+			log.Error("数据库创建用户失败", "error", err, "cas_id", result.CasID)
+			response.Fail(c, response.ErrDatabase.WithOrigin(err))
+			return
+		}
+	} else {
+		log.Error("数据库查询失败", "error", err, "cas_id", result.CasID)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
+
+	// 记录登录成功的日志
+	log.Info("用户登录成功",
+		"student_id", user.StudentID,
+		"role_id", user.RoleID)
+
+	token = jwt.CreateToken(jwt.Payload{
+		ID:        user.ID,
+		StudentID: user.StudentID,
+		RoleID:    user.RoleID,
+	})
+
+	appData := AppData{
+		State: State{
+			User: UserDataFrontend{
+				ID:        strconv.Itoa(int(user.ID)),
+				Name:      user.Name,
+				Role:      roleNames[user.RoleID],
+				StudentID: user.StudentID,
+				RoleID:    user.RoleID,
+				NickName:  user.NickName,
+				Avatar:    user.Avatar,
+				College:   user.College,
+				Major:     user.Major,
+				CreatedAt: user.CreatedAt,
+				UpdatedAt: user.UpdatedAt,
+			},
+			Token:      token,
+			IsLoggedIn: true,
+		},
+		Version: 0,
+	}
+
+	jsonData, err := json.MarshalIndent(appData, "", "  ")
+	if err != nil {
+		log.Error("JSON序列化失败", "error", err, "cas_id", result.CasID)
+		response.Fail(c, response.ErrServerInternal.WithOrigin(err))
+		return
+	}
+	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(fmt.Sprintf(`
+        <html><body><script>
+            localStorage.setItem('auth-storage', '%s');
+            window.location.href = '/admin/home';
+        </script></body></html>
+    `, jsonData)))
+
 }
