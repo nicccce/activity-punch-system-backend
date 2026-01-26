@@ -1,6 +1,9 @@
 package tools
 
 import (
+	"fmt"
+	"github.com/gin-gonic/gin"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -27,4 +30,21 @@ func SearchFile(fileName string) (filePath string) {
 		}
 		dir = filepath.Dir(dir)
 	}
+}
+
+const (
+	ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+
+func SendStoredFile(c *gin.Context, path, displayName, contentType string) error {
+	escaped := url.QueryEscape(displayName)
+
+	c.Header("Content-Type", contentType)
+	c.Header(
+		"Content-Disposition",
+		fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, escaped, escaped),
+	)
+
+	c.File(path)
+	return nil
 }

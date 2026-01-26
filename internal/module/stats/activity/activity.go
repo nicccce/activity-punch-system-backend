@@ -1,6 +1,7 @@
 package activity
 
 import (
+	"activity-punch-system/config"
 	"activity-punch-system/internal/global/database"
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/logger"
@@ -16,6 +17,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"net/url"
+	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -188,6 +192,58 @@ func Brief(c *gin.Context) {
 	response.Success(c, result)
 }
 
+func RankExport(c *gin.Context) {
+	a, ok := activityIdValidator(c)
+	if !ok {
+		return
+	}
+	endDateStr := strconv.FormatInt(a.EndDate, 10)
+	endDate, _ := time.Parse("20060102", endDateStr)
+	endDate = endDate.AddDate(0, 0, 1)
+	currentTime := time.Now()
+	if currentTime.Before(endDate) {
+		response.Fail(c, &response.Error{
+			Code:    403,
+			Message: "活动尚未结束，无法导出排名",
+		})
+		return
+	}
+	filename := filepath.Join(config.Get().Storage.Home, "stats", "activity", fmt.Sprintf("activity%d_ranks.xlsx", a.ID))
+	if !tools.FileExist(filename) {
+		dir := filepath.Dir(filename)
+
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			log.Error("创建目录失败", "dir", dir, "error", err.Error())
+			response.Fail(c, response.ErrServerInternal)
+			return
+		}
+
+		ranks, err := selectActivityRankInExcel(a.ID)
+		if err != nil {
+			log.Error("数据库 查询活动排名失败", "error", err.Error())
+			response.Fail(c, response.ErrDatabase)
+			return
+		}
+		f := excelize.NewFile()
+		defer tools.PanicOnErr(f.Close())
+		if err := tools.ExportToExcel(f, fmt.Sprintf("活动%d(%s)得分排名", a.ID, a.Name), ranks); err != nil {
+			log.Error("导出excel错误", "error", err)
+			response.Fail(c, response.ErrServerInternal)
+			return
+		}
+		_ = f.DeleteSheet("Sheet1")
+		if err := f.SaveAs(filename); err != nil {
+			log.Error("保存文件错误", "error", err.Error())
+			response.Fail(c, response.ErrServerInternal)
+			return
+		}
+	}
+	if err := tools.SendStoredFile(c, filename, fmt.Sprintf("活动%d(%s)得分排名", a.ID, a.Name), tools.ExcelContentType); err != nil {
+		log.Error("发送文件错误", "error", err.Error())
+		response.Fail(c, response.ErrServerInternal)
+	}
+}
+
 func Export(c *gin.Context) {
 	a, ok := activityIdValidator(c)
 	if !ok {
@@ -203,7 +259,7 @@ func Export(c *gin.Context) {
 		return
 	}
 
-	if err := tools.ExportToExcel(f, "活动"+a.Name+"得分排名", ranks); err != nil {
+	if err := tools.ExportToExcel(f, fmt.Sprintf("活动%d(%s)得分排名", a.ID, a.Name), ranks); err != nil {
 		log.Error("导出excel错误", "error", err)
 		response.Fail(c, response.ErrServerInternal)
 		return
@@ -214,7 +270,7 @@ func Export(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
-	if err := tools.ExportToExcel(f, "活动"+a.Name+"下的项目", projects); err != nil {
+	if err := tools.ExportToExcel(f, fmt.Sprintf("活动%d(%s)下的项目", a.ID, a.Name), projects); err != nil {
 		log.Error("导出excel错误", "error", err)
 		response.Fail(c, response.ErrServerInternal)
 		return
@@ -226,7 +282,7 @@ func Export(c *gin.Context) {
 			response.Fail(c, response.ErrDatabase)
 			return
 		}
-		if err := tools.ExportToExcel(f, fmt.Sprintf("项目%d下的栏目", p.ID), columns); err != nil {
+		if err := tools.ExportToExcel(f, fmt.Sprintf("项目%d(%s)下的栏目", p.ID, p.Name), columns); err != nil {
 			log.Error("导出excel错误", "error", err)
 			response.Fail(c, response.ErrServerInternal)
 			return
@@ -238,24 +294,23 @@ func Export(c *gin.Context) {
 				response.Fail(c, response.ErrDatabase)
 				return
 			}
-			if err := tools.ExportToExcel(f, fmt.Sprintf("栏目%d的打卡记录", column.ID), punches); err != nil {
+			if err := tools.ExportToExcel(f, fmt.Sprintf("栏目%d(%s)的打卡记录", column.ID, column.Name), punches); err != nil {
 				log.Error("导出excel错误", "error", err)
 				response.Fail(c, response.ErrServerInternal)
 				return
 			}
-			for _, punch := range punches {
-				scores := []model.Score{}
-				if err := database.DB.Model(&model.Score{}).Where("punch_id = ? AND deleted_at IS NULL", punch.ID).Find(&scores).Error; err != nil {
-					log.Error("查询 score 表错误", "error", err)
-					response.Fail(c, response.ErrDatabase)
-					return
-				}
-				if err := tools.ExportToExcel(f, fmt.Sprintf("打卡记录%d的得分记录", punch.ID), scores); err != nil {
-					log.Error("导出excel错误", "error", err)
-					response.Fail(c, response.ErrServerInternal)
-					return
-				}
+			scores := []model.Score{}
+			if err := database.DB.Model(&model.Score{}).Where("column_id = ? AND deleted_at IS NULL", column.ID).Find(&scores).Error; err != nil {
+				log.Error("查询 score 表错误", "error", err)
+				response.Fail(c, response.ErrDatabase)
+				return
 			}
+			if err := tools.ExportToExcel(f, fmt.Sprintf("栏目%d(%s)的得分记录", column.ID, column.Name), scores); err != nil {
+				log.Error("导出excel错误", "error", err)
+				response.Fail(c, response.ErrServerInternal)
+				return
+			}
+
 		}
 
 	}
