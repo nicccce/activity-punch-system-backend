@@ -18,15 +18,15 @@ type Config struct {
 	Redis    Redis
 	JWT      JWT
 	Log      Log
-	SduLogin SduLogin `envconfig:"SDU_LOGIN"`
+	Sdulogin Sdulogin `yaml:"Sdulogin" envconfig:"SDULOGIN"`
 }
 
 type Storage struct {
 	Home string
 }
-type SduLogin struct {
-	Mode   string `envconfig:"MODE"`
-	CasKey string `envconfig:"CAS_KEY"`
+type Sdulogin struct {
+	CasKey string `yaml:"caskey" envconfig:"CASKEY"`
+	Mode   Mode   `yaml:"mode" envconfig:"MODE"`
 }
 
 type Mysql struct {
