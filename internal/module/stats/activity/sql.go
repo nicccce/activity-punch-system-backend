@@ -69,7 +69,7 @@ type activityRankInExcel struct {
 	Score     uint   `gorm:"not null" json:"score" excel:"分数"`
 	StudentID string `gorm:"column:student_id" json:"student_id" excel:"学号"`
 	ID        uint   `gorm:"column:id" json:"user_id" excel:"用户ID"`
-	College   string `gorm:"column:college" json:"college" excel:"校区"`
+	College   string `gorm:"column:college" json:"college" excel:"学院"`
 	Major     string `gorm:"column:major" json:"major" excel:"专业"`
 	Grade     string `gorm:"column:grade" json:"grade" excel:"年级"`
 }
