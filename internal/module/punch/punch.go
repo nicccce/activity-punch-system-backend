@@ -69,7 +69,11 @@ func InsertPunch(c *gin.Context) {
 	}
 	today := getTodayStart()
 	count := int64(0)
-	if err := database.DB.Model(&model.Punch{}).Where("user_id = ? AND column_id = ? AND created_at >= ?", userPayload.ID, req.ColumnID, today).Count(&count).Error; err != nil {
+	// 统计今日打卡次数：包含未删除的所有记录 + 已删除但审核不通过的记录（防止删除后重新打卡绕过限制）
+	if err := database.DB.Table("punch").
+		Where("user_id = ? AND column_id = ? AND created_at >= ?", userPayload.ID, req.ColumnID, today).
+		Where("deleted_at IS NULL OR status = 2").
+		Count(&count).Error; err != nil {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
@@ -641,6 +645,12 @@ func DeletePunch(c *gin.Context) {
 		return
 	}
 
+	// 审核通过的打卡不允许删除
+	if punch.Status == 1 {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("审核通过的打卡记录不允许删除"))
+		return
+	}
+
 	var column model.Column
 	if err := database.DB.First(&column, "id = ?", punch.ColumnID).Error; err != nil {
 		response.Fail(c, response.ErrNotFound.WithTips("栏目不存在"))
@@ -698,6 +708,12 @@ func UpdatePunch(c *gin.Context) {
 	var punch model.Punch
 	if err := database.DB.First(&punch, "id = ? AND user_id = ?", idStr, userPayload.ID).Error; err != nil {
 		response.Fail(c, response.ErrNotFound.WithTips("打卡记录不存在或无权限"))
+		return
+	}
+
+	// 审核通过的打卡不允许修改
+	if punch.Status == 1 {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("审核通过的打卡记录不允许修改"))
 		return
 	}
 
