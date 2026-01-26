@@ -8,10 +8,10 @@ type Score struct {
 	Model
 	//我想还是uint好吧，前端自己做"汇率转换"
 	Count    uint   `gorm:"not null" json:"count"  excel:"分数"`
-	UserID   uint   `gorm:"not null" json:"-" excel:"-"`
+	UserID   uint   `gorm:"not null" json:"-" excel:"用户id"`
 	MarkedBy string `gorm:"type:varchar(50);not null" json:"marked_by" excel:"打分人"`
 	Cause    string `gorm:"type:varchar(255);not null" json:"cause" excel:"打分原因"`
-	PunchID  uint   `gorm:"not null" json:"-" excel:"-"`
+	PunchID  uint   `gorm:"not null" json:"-" excel:"触发得分的打卡记录id"`
 	ColumnID uint   `gorm:"not null" json:"-" excel:"-"`
 
 	Punch partialPunchForScore `gorm:"foreignKey:PunchID;references:ID" excel:"-"`

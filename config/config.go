@@ -12,7 +12,8 @@ type Config struct {
 	Port     string `envconfig:"PORT"`
 	Domain   string `envconfig:"DOMAIN"`
 	Prefix   string `envconfig:"PREFIX"`
-	Mode     Mode   `envconfig:"MODE"`
+	Storage  Storage
+	Mode     Mode `envconfig:"MODE"`
 	Mysql    Mysql
 	Redis    Redis
 	JWT      JWT
@@ -20,6 +21,9 @@ type Config struct {
 	SduLogin SduLogin `envconfig:"SDU_LOGIN"`
 }
 
+type Storage struct {
+	Home string
+}
 type SduLogin struct {
 	Mode   string `envconfig:"MODE"`
 	CasKey string `envconfig:"CAS_KEY"`

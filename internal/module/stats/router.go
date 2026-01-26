@@ -24,6 +24,7 @@ func (*ModuleStats) InitRouter(r *gin.RouterGroup) {
 			activityCommon.POST("/:id/rank", activity.Rank)
 			activityCommon.POST("/:id/detail", activity.Detail)
 			activityCommon.GET("/:id/brief", activity.Brief)
+			activityCommon.GET("/:id/rank/export", activity.RankExport)
 		}
 	}
 	adminGroup := r.Group("/stats")

@@ -69,7 +69,7 @@ type activityRankInExcel struct {
 	Score     uint   `gorm:"not null" json:"score" excel:"分数"`
 	StudentID string `gorm:"column:student_id" json:"student_id" excel:"学号"`
 	ID        uint   `gorm:"column:id" json:"user_id" excel:"用户ID"`
-	College   string `gorm:"column:college" json:"college" excel:"校区"`
+	College   string `gorm:"column:college" json:"college" excel:"学院"`
 	Major     string `gorm:"column:major" json:"major" excel:"专业"`
 	Grade     string `gorm:"column:grade" json:"grade" excel:"年级"`
 }
@@ -112,16 +112,10 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 	}
 
 	var totalScoreResult briefResult
-	if err := database.DB.
-		Table("(?) as t", database.DB.
-			Table("total_score").
-			Select(`
-			user_id,
-			score AS ts,
-			RANK() OVER (ORDER BY score DESC) AS ranks
-		`).
-			Where("activity_id = ?", activityID),
-		).
+	subQuery := database.DB.Table("total_score").
+		Select("user_id, score AS ts, RANK() OVER (ORDER BY score DESC) AS ranks").
+		Where("activity_id = ?", activityID)
+	if err := database.DB.Table("(?) AS ranked", subQuery).
 		Where("user_id = ?", userID).
 		Scan(&totalScoreResult).Error; err != nil {
 		log.Error("数据库 查询total_score失败", "error", err.Error())

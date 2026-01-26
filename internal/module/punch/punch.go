@@ -31,8 +31,8 @@ func getTodayStart() time.Time {
 // PunchInsertRequest 定义插入打卡记录的请求体结构
 type PunchInsertRequest struct {
 	ColumnID int      `json:"column_id" binding:"required"`
-	Content  string   `json:"content" binding:"required"`
-	Images   []string `json:"images" binding:"omitempty"`
+	Content  string   `json:"content" binding:"required,max=1000"`
+	Images   []string `json:"images" binding:"omitempty,max=9"`
 }
 
 type PunchWithImgs struct {
@@ -368,7 +368,7 @@ func ReviewPunch(c *gin.Context) {
 
 	tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserActivity{
 		ActivityID: activityID,
-		UserID:     userPayload.ID,
+		UserID:     punch.UserID, // 使用打卡者的ID，而非审核者的ID
 	}))
 
 	// 辅助函数：检查每日积分上限并发放积分
@@ -668,8 +668,8 @@ func DeletePunch(c *gin.Context) {
 // PunchUpdateRequest 修改打卡请求体
 type PunchUpdateRequest struct {
 	ColumnID int      `json:"column_id" binding:"required"`
-	Content  string   `json:"content" binding:"required"`
-	Images   []string `json:"images" binding:"omitempty"`
+	Content  string   `json:"content" binding:"required,max=1000"`
+	Images   []string `json:"images" binding:"omitempty,max=9"`
 }
 
 // UpdatePunch 修改打卡记录
@@ -1010,7 +1010,7 @@ func GetPunchDetail(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		response.Fail(c, response.ErrDatabase.WithTips(err.Error()))
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 
