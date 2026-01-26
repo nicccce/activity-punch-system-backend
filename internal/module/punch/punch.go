@@ -1,8 +1,10 @@
 package punch
 
 import (
+	"activity-punch-system/config"
 	"activity-punch-system/internal/global/database"
 	"activity-punch-system/internal/global/jwt"
+	"activity-punch-system/internal/global/pictureBed"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
 	"database/sql"
@@ -1133,4 +1135,59 @@ func GetReviewedPunchList(c *gin.Context) {
 		Ps:    result,
 	})
 	return
+}
+
+// PresignedUploadRequest 预签名上传请求
+type PresignedUploadRequest struct {
+	Filename    string `json:"filename" binding:"required"`
+	ContentType string `json:"content_type"`
+}
+
+// GetPresignedUploadURL 获取预签名上传 URL（推荐：前端直接上传到 S3）
+func GetPresignedUploadURL(c *gin.Context) {
+	// 获取认证信息
+	payload, exists := c.Get("payload")
+	if !exists {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+	_, ok := payload.(*jwt.Claims)
+	if !ok {
+		response.Fail(c, response.ErrUnauthorized)
+		return
+	}
+
+	// 绑定请求参数
+	var req PresignedUploadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Error("绑定预签名上传请求失败", "error", err)
+		response.Fail(c, response.ErrInvalidRequest.WithOrigin(err))
+		return
+	}
+
+	// 创建图片床实例
+	pb := pictureBed.NewPictureBed(config.Get().S3.Endpoint, "")
+
+	// 初始化 S3 客户端
+	if err := pb.InitS3(c.Request.Context()); err != nil {
+		log.Error("初始化 S3 客户端失败", "error", err)
+		response.Fail(c, response.ErrServerInternal.WithTips("初始化存储服务失败"))
+		return
+	}
+
+	// 生成预签名上传 URL
+	presignedReq := pictureBed.PresignedUploadRequest{
+		Filename:    req.Filename,
+		ContentType: req.ContentType,
+		ExpiresIn:   900, // 15 分钟
+	}
+
+	presignedResp, err := pb.GeneratePresignedUploadURL(c.Request.Context(), presignedReq)
+	if err != nil {
+		log.Error("生成预签名上传 URL 失败", "error", err)
+		response.Fail(c, response.ErrServerInternal.WithTips("生成上传链接失败"))
+		return
+	}
+
+	response.Success(c, presignedResp)
 }
