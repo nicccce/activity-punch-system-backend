@@ -39,5 +39,7 @@ func (p *ModulePunch) InitRouter(r *gin.RouterGroup) {
 		commonGroup.GET("/recent-participation", GetRecentParticipation)
 		// 获取打卡记录详情端点
 		commonGroup.GET("/get/:id", GetPunchDetail)
+		// 获取预签名上传 URL（推荐：前端直接上传到 S3）
+		commonGroup.POST("/presigned-upload-url", GetPresignedUploadURL)
 	}
 }

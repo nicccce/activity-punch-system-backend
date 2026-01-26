@@ -4,11 +4,12 @@ networks:
 
 services:
   app:
-    build: ..
-#    image: 666/activity-punch-system-backend:latest
+    # build: ..
+    image: activity-punch-2026:latest
     container_name: activity-punch-system-backend-app
     volumes:
       - ./config.yaml:/app/config.yaml
+      - ./log:/log
     ports:
       - "8080:8080"
     depends_on:
@@ -22,7 +23,7 @@ services:
     image: mysql:8.0
     container_name: activity-punch-system-backend-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: 12345678
+      MYSQL_ROOT_PASSWORD: 0nline@seal
       MYSQL_DATABASE: activity-punch-system-backend
       TZ: Asia/Shanghai
     healthcheck:
@@ -31,6 +32,19 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    privileged: true
+    restart: always
+    ports:
+      - 8081:3306
+    networks:
+      - activity-punch-system-backend-net
+
+  redis:
+    image: redis:7.0
+    container_name: activity-punch-system-redis
+    command: --requirepass 0nline@seal
+    environment:
+      TZ: Asia/Shanghai
     privileged: true
     restart: always
     networks:

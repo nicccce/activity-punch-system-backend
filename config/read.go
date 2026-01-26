@@ -25,6 +25,7 @@ func Init(path ...string) {
 		fmt.Println("Config file not exist in ", filePath, ". Using environment variables.")
 		tools.PanicOnErr(envconfig.Process("", &c))
 	}
+
 }
 
 func Set(config Config) {

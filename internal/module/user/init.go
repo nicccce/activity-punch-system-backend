@@ -19,7 +19,8 @@ var casClient *sduauth.CASClient
 
 func (u *ModuleUser) Init() {
 	log = logger.New("User")
-	casClient, _ = sduauth.NewCASClient(config.Get().SduLogin.CasKey)
+	casClient, _ = sduauth.NewCASClient(config.Get().Sdulogin.CasKey)
+	//println("key:", config.Get().Sdulogin.CasKey)
 }
 
 func selfInit() {

@@ -18,15 +18,28 @@ type Config struct {
 	Redis    Redis
 	JWT      JWT
 	Log      Log
-	SduLogin SduLogin `envconfig:"SDU_LOGIN"`
+	Sdulogin Sdulogin `yaml:"Sdulogin" envconfig:"SDULOGIN"`
+	S3       S3
 }
 
 type Storage struct {
 	Home string
 }
-type SduLogin struct {
-	Mode   string `envconfig:"MODE"`
-	CasKey string `envconfig:"CAS_KEY"`
+
+type S3 struct {
+	Endpoint        string `mapstructure:"endpoint"`
+	BaseURL         string `mapstructure:"base_url"`
+	Bucket          string `mapstructure:"bucket"`
+	Region          string `mapstructure:"region"`
+	AccessKey       string `mapstructure:"access_key"`
+	SecretAccessKey string `mapstructure:"secret_key"`
+	Prefix          string `mapstructure:"prefix"`
+	UsePathStyle    bool   `mapstructure:"path_style"`
+}
+
+type Sdulogin struct {
+	CasKey string `yaml:"caskey" envconfig:"CASKEY"`
+	Mode   Mode   `yaml:"mode" envconfig:"MODE"`
 }
 
 type Mysql struct {

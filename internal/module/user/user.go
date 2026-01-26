@@ -25,7 +25,7 @@ type User struct {
 	Password  string `json:"password" binding:"required"`   // 密码，登录时验证，注册时加密
 }
 
-const callbackURL = "https://daka.sduonline.cn/api/cas/callback"
+const callbackURL = "https://daka.sduonline.cn/api/v1/user/cas/callback"
 
 // Login 处理用户登录请求
 func Login(c *gin.Context) {
@@ -199,7 +199,7 @@ type registerReq struct {
 
 // Register 处理用户注册请求
 func Register(c *gin.Context) {
-	if config.Get().SduLogin.Mode != "default" {
+	if config.Get().Sdulogin.Mode != "default" {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("当前登录模式不支持"))
 		return
 	}
@@ -271,7 +271,7 @@ type ChangePasswordReq struct {
 // 参数:
 //   - c: gin 上下文，用于接收请求和发送响应
 func ChangePassword(c *gin.Context) {
-	if config.Get().SduLogin.Mode != "default" {
+	if config.Get().Sdulogin.Mode != "default" {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("当前登录模式不支持"))
 		return
 	}
@@ -461,7 +461,7 @@ var roleNames = map[int]string{
 }
 
 func casCallback(c *gin.Context) {
-	token := c.Param("token")
+	token := c.Query("token")
 	if token == "" {
 		log.Error("CAS 回调失败", "token 不能为空")
 		response.Fail(c, response.ErrInvalidRequest.WithTips("token 不能为空"))
@@ -470,7 +470,9 @@ func casCallback(c *gin.Context) {
 	// 验证 token
 	result, err := casClient.ValidateToken(token)
 	if err != nil {
-		panic(err)
+		log.Error("CAS 回调失败", "token 验证失败", "error", err)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("token 验证失败"))
+		return
 	}
 
 	if !result.Success {
@@ -495,7 +497,7 @@ func casCallback(c *gin.Context) {
 	var user model.User
 	// 查询用户
 	err = database.DB.Where("student_id = ?", result.CasID).First(&user).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	if err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
 		//首次登录，注册用户
 		user.StudentID = result.CasID
 
@@ -522,7 +524,7 @@ func casCallback(c *gin.Context) {
 			response.Fail(c, response.ErrDatabase.WithOrigin(err))
 			return
 		}
-	} else {
+	} else if err != nil {
 		log.Error("数据库查询失败", "error", err, "cas_id", result.CasID)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
@@ -559,18 +561,35 @@ func casCallback(c *gin.Context) {
 		},
 		Version: 0,
 	}
-
-	jsonData, err := json.MarshalIndent(appData, "", "  ")
+	jsonData, err := json.Marshal(appData)
 	if err != nil {
 		log.Error("JSON序列化失败", "error", err, "cas_id", result.CasID)
 		response.Fail(c, response.ErrServerInternal.WithOrigin(err))
 		return
 	}
+
+	// 2. 修改 HTML 模板逻辑
+	// 不要写 localStorage.setItem('key', '%s')
+	// 而是先赋值给 JS 变量: var data = %s;
+	// 这样 Go 的 JSON 输出（例如 {"a":1}）直接变成 JS 的对象字面量，非常安全
+	jsonStr := string(jsonData)
+
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(fmt.Sprintf(`
         <html><body><script>
-            localStorage.setItem('auth-storage', '%s');
-            window.location.href = '/admin/home';
+            try {
+                // 这里的 jsonStr 会直接变成 JS 对象，不需要引号包裹
+                var backendData = %s;
+                
+                // 使用 JSON.stringify 把它转回字符串存入 localStorage
+                localStorage.setItem('auth-storage', JSON.stringify(backendData));
+                
+                // 跳转
+                window.location.href = '/admin/home';
+            } catch (e) {
+                console.error("Storage Error:", e);
+                document.body.innerHTML = "登录数据写入失败，请尝试清除浏览器缓存或切换无痕模式";
+            }
         </script></body></html>
-    `, jsonData)))
+    `, jsonStr)))
 
 }
