@@ -84,3 +84,17 @@ jwt:
 SduLogin:
     #用于cas登录的key
     cas_key: "cas_key"
+
+S3:
+  # API 端点
+  endpoint: "https://cn-nb1.rains3.com"
+  # 访问地址
+  base_url: "https://punch.cn-nb1.rains3.com"
+  # 存储桶
+  bucket: "punch"
+  region: "us-east-1"
+  access_key: "1234567890"
+  secret_key: "1234567890"
+  # 对象 key 前缀
+  prefix: "punch"
+  path_style: true

@@ -1159,7 +1159,7 @@ type PresignedUploadRequest struct {
 	ContentType string `json:"content_type"`
 }
 
-// GetPresignedUploadURL 获取预签名上传 URL（推荐：前端直接上传到 S3）
+// GetPresignedUploadURL 获取预签名上传 URL
 func GetPresignedUploadURL(c *gin.Context) {
 	// 获取认证信息
 	payload, exists := c.Get("payload")
@@ -1195,7 +1195,7 @@ func GetPresignedUploadURL(c *gin.Context) {
 	presignedReq := pictureBed.PresignedUploadRequest{
 		Filename:    req.Filename,
 		ContentType: req.ContentType,
-		ExpiresIn:   900, // 15 分钟
+		ExpiresIn:   120, // 2 分钟
 	}
 
 	presignedResp, err := pb.GeneratePresignedUploadURL(c.Request.Context(), presignedReq)
