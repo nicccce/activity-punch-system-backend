@@ -379,6 +379,8 @@ type ColumnInProject struct {
 	Name            string `json:"name"`
 	Avatar          string `json:"avatar"`
 	Description     string `json:"description"`       // 栏目描述
+	StartDate       int64  `json:"start_date"`        // 栏目开始日期
+	EndDate         int64  `json:"end_date"`          // 栏目结束日期
 	DailyPunchLimit int    `json:"daily_punch_limit"` // 每日可打卡次数，0表示不限次数
 	PointEarned     uint   `json:"point_earned"`      // 每次打卡可获得的积分
 	StartTime       string `json:"start_time"`        // 每日打卡开始时间，格式为 "HH:MM"
@@ -431,6 +433,8 @@ func GetProject(c *gin.Context) {
 			Name:            col.Name,
 			Avatar:          col.Avatar,
 			Description:     col.Description,
+			StartDate:       col.StartDate,
+			EndDate:         col.EndDate,
 			DailyPunchLimit: col.DailyPunchLimit,
 			PointEarned:     col.PointEarned,
 			StartTime:       col.StartTime,

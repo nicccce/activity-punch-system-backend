@@ -119,10 +119,31 @@ func CreateColumn(c *gin.Context) {
 		return
 	}
 
-	// 验证栏目的开始时间不能晚于结束时间
-	if req.StartDate >= req.EndDate {
-		log.Warn("栏目开始时间不能晚于或等于结束时间", "start_date", req.StartDate, "end_date", req.EndDate)
-		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目开始时间必须早于结束时间"))
+	// 验证栏目的开始日期不能晚于结束日期（允许同一天）
+	if req.StartDate > req.EndDate {
+		log.Warn("栏目开始日期不能晚于结束日期", "start_date", req.StartDate, "end_date", req.EndDate)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("栏目开始日期不能晚于结束日期"))
+		return
+	}
+
+	// 验证每日打卡时间设置
+	if req.StartTime != "" && req.EndTime != "" {
+		startTime, err1 := time.Parse("15:04", req.StartTime)
+		endTime, err2 := time.Parse("15:04", req.EndTime)
+		if err1 != nil || err2 != nil {
+			log.Warn("每日打卡时间格式错误", "start_time", req.StartTime, "end_time", req.EndTime)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("每日打卡时间格式错误，应为 HH:MM"))
+			return
+		}
+		// 如果是同一天，开始时间必须早于结束时间（不支持跨天）
+		if req.StartDate == req.EndDate && !startTime.Before(endTime) {
+			log.Warn("同一天时开始时间必须早于结束时间", "start_time", req.StartTime, "end_time", req.EndTime)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("同一天时每日打卡开始时间必须早于结束时间"))
+			return
+		}
+	} else if (req.StartTime != "" && req.EndTime == "") || (req.StartTime == "" && req.EndTime != "") {
+		log.Warn("每日打卡时间设置不完整", "start_time", req.StartTime, "end_time", req.EndTime)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("每日打卡开始时间和结束时间必须同时设置或同时留空"))
 		return
 	}
 
@@ -221,14 +242,54 @@ func UpdateColumn(c *gin.Context) {
 			return
 		}
 
-		// 验证栏目的开始时间不能晚于结束时间
-		if startDate >= endDate {
-			log.Warn("栏目开始时间不能晚于或等于结束时间", "start_date", startDate, "end_date", endDate)
-			response.Fail(c, response.ErrInvalidRequest.WithTips("栏目开始时间必须早于结束时间"))
+		// 验证栏目的开始日期不能晚于结束日期（允许同一天）
+		if startDate > endDate {
+			log.Warn("栏目开始日期不能晚于结束日期", "start_date", startDate, "end_date", endDate)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("栏目开始日期不能晚于结束日期"))
 			return
 		}
 
 	}
+
+	// 验证每日打卡时间设置（更新时需要考虑原有值）
+	startTime := column.StartTime
+	endTime := column.EndTime
+	if req.StartTime != nil {
+		startTime = *req.StartTime
+	}
+	if req.EndTime != nil {
+		endTime = *req.EndTime
+	}
+	// 计算更新后的日期
+	finalStartDate := column.StartDate
+	finalEndDate := column.EndDate
+	if req.StartDate != nil {
+		finalStartDate = *req.StartDate
+	}
+	if req.EndDate != nil {
+		finalEndDate = *req.EndDate
+	}
+
+	if startTime != "" && endTime != "" {
+		parsedStartTime, err1 := time.Parse("15:04", startTime)
+		parsedEndTime, err2 := time.Parse("15:04", endTime)
+		if err1 != nil || err2 != nil {
+			log.Warn("每日打卡时间格式错误", "start_time", startTime, "end_time", endTime)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("每日打卡时间格式错误，应为 HH:MM"))
+			return
+		}
+		// 如果是同一天，开始时间必须早于结束时间（不支持跨天）
+		if finalStartDate == finalEndDate && !parsedStartTime.Before(parsedEndTime) {
+			log.Warn("同一天时开始时间必须早于结束时间", "start_time", startTime, "end_time", endTime)
+			response.Fail(c, response.ErrInvalidRequest.WithTips("同一天时每日打卡开始时间必须早于结束时间"))
+			return
+		}
+	} else if (startTime != "" && endTime == "") || (startTime == "" && endTime != "") {
+		log.Warn("每日打卡时间设置不完整", "start_time", startTime, "end_time", endTime)
+		response.Fail(c, response.ErrInvalidRequest.WithTips("每日打卡开始时间和结束时间必须同时设置或同时留空"))
+		return
+	}
+
 	if req.PointEarned != nil {
 		// 验证积分是否为负数
 		if *req.PointEarned <= 0 {

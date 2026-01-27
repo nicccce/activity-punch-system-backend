@@ -99,44 +99,70 @@ func InsertPunch(c *gin.Context) {
 		response.Fail(c, response.ErrNotFound.WithTips("栏目不存在"))
 		return
 	}
+	// 解析栏目的日期和时间范围（使用本地时区）
 	startDateStr := strconv.FormatInt(column.StartDate, 10)
 	endDateStr := strconv.FormatInt(column.EndDate, 10)
-	startDate, _ := time.Parse("20060102", startDateStr)
-	endDate, _ := time.Parse("20060102", endDateStr)
+	loc := time.Local // 使用本地时区
+	startDate, _ := time.ParseInLocation("20060102", startDateStr, loc)
+	endDate, _ := time.ParseInLocation("20060102", endDateStr, loc)
 	currentTime := time.Now()
 
-	// 判断当前日期是否在栏目时间范围内
-	if currentTime.Before(startDate) || currentTime.After(endDate) {
+	// 构建完整的开始和结束时间点
+	var punchStartTime, punchEndTime time.Time
+
+	if column.StartTime != "" {
+		// 如果设置了每日开始时间，使用 StartDate + StartTime
+		parsedTime, err := time.Parse("15:04", column.StartTime)
+		if err != nil {
+			response.Fail(c, response.ErrInvalidRequest.WithTips("每日开始时间格式错误"))
+			return
+		}
+		punchStartTime = time.Date(startDate.Year(), startDate.Month(), startDate.Day(),
+			parsedTime.Hour(), parsedTime.Minute(), 0, 0, loc)
+	} else {
+		// 没有设置开始时间，默认为 StartDate 00:00:00
+		punchStartTime = startDate
+	}
+
+	if column.EndTime != "" {
+		// 如果设置了每日结束时间，使用 EndDate + EndTime
+		parsedTime, err := time.Parse("15:04", column.EndTime)
+		if err != nil {
+			response.Fail(c, response.ErrInvalidRequest.WithTips("每日结束时间格式错误"))
+			return
+		}
+		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
+			parsedTime.Hour(), parsedTime.Minute(), 59, 0, loc)
+	} else {
+		// 没有设置结束时间，默认为 EndDate 23:59:59
+		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
+			23, 59, 59, 0, loc)
+	}
+
+	// 判断当前时间是否在允许的打卡时间范围内
+	if currentTime.Before(punchStartTime) || currentTime.After(punchEndTime) {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在栏目时间范围内，无法打卡"))
 		return
 	}
 
-	// 判断当前时间是否在每日打卡时间范围内
-	if column.StartTime != "" && column.EndTime != "" {
-		now := time.Now()
-		currentTimeStr := now.Format("15:04") // HH:MM 格式
-
-		// 解析每日开始和结束时间
-		startTime, err1 := time.Parse("15:04", column.StartTime)
-		endTime, err2 := time.Parse("15:04", column.EndTime)
-		currentParsed, err3 := time.Parse("15:04", currentTimeStr)
-
-		if err1 != nil || err2 != nil || err3 != nil {
-			response.Fail(c, response.ErrInvalidRequest.WithTips("时间格式错误"))
-			return
-		}
+	// 如果栏目跨多天且设置了每日打卡时间段，还需要检查当天的时间段
+	if column.StartDate != column.EndDate && column.StartTime != "" && column.EndTime != "" {
+		currentTimeStr := currentTime.Format("15:04")
+		startTime, _ := time.Parse("15:04", column.StartTime)
+		endTime, _ := time.Parse("15:04", column.EndTime)
+		currentParsed, _ := time.Parse("15:04", currentTimeStr)
 
 		// 处理跨天情况（例如 22:00 - 06:00）
 		if endTime.Before(startTime) {
 			// 跨天情况：当前时间在开始时间之后或结束时间之前
 			if currentParsed.Before(startTime) && currentParsed.After(endTime) {
-				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在打卡时间范围内，无法打卡"))
+				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在每日打卡时间范围内，无法打卡"))
 				return
 			}
 		} else {
 			// 不跨天情况：当前时间必须在开始和结束时间之间
 			if currentParsed.Before(startTime) || currentParsed.After(endTime) {
-				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在打卡时间范围内，无法打卡"))
+				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在每日打卡时间范围内，无法打卡"))
 				return
 			}
 		}
@@ -341,6 +367,9 @@ func ReviewPunch(c *gin.Context) {
 		return
 	}
 
+	// 记录原状态，用于判断是否需要扣分
+	originalStatus := punch.Status
+
 	// 更新审核状态
 	punch.Status = req.Status
 	if err := database.DB.Save(&punch).Error; err != nil {
@@ -356,6 +385,11 @@ func ReviewPunch(c *gin.Context) {
 	//获取方式可优化(优化为前端传来
 	var projectID uint
 	database.DB.Table("column").Select("project_id").Where("id = ?", punch.ColumnID).Scan(&projectID)
+
+	// 如果从通过(1)改为驳回(2)或待审核(0)，自动扣除之前发放的所有积分
+	if originalStatus == 1 && req.Status != 1 {
+		req.ClearScore = true
+	}
 
 	// 获取完整的项目信息（包含CompletionBonus和ExemptFromLimit）
 	var project model.Project
@@ -534,9 +568,9 @@ func ReviewPunch(c *gin.Context) {
 			// 检查并发放活动完成奖励
 			checkAndAwardActivityBonus()
 		}
-	} else if req.ClearScore && req.Status == 2 { //扣粪!
+	} else if req.ClearScore && req.Status != 1 { // 扣分：从通过改为驳回或待审核时
 		var scores []model.Score
-		if err := tx.Where("user_id = ? AND punch_id = ?", userPayload.ID, punch.ID).Find(&scores).Error; err != nil {
+		if err := tx.Where("user_id = ? AND punch_id = ?", punch.UserID, punch.ID).Find(&scores).Error; err != nil {
 			log.Warn("数据库 扣分时获取score记录失败", "err", err.Error())
 			c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但扣分失败", Data: res})
 			return
@@ -549,7 +583,7 @@ func ReviewPunch(c *gin.Context) {
 			}
 			res.AddedScore -= int(s.Count)
 		}
-
+		log.Info("扣分完成", "punch_id", punch.ID, "user_id", punch.UserID, "deducted_score", -res.AddedScore)
 	}
 	response.Success(c, res)
 }
@@ -659,12 +693,23 @@ func DeletePunch(c *gin.Context) {
 		return
 	}
 
-	// 判断打卡时间是否在栏目时间范围内
+	// 判断打卡时间是否在栏目时间范围内（使用本地时区）
 	startDateStr := strconv.FormatInt(column.StartDate, 10)
 	endDateStr := strconv.FormatInt(column.EndDate, 10)
-	startDate, _ := time.Parse("20060102", startDateStr)
-	endDate, _ := time.Parse("20060102", endDateStr)
-	if punch.CreatedAt.Before(startDate) || punch.CreatedAt.After(endDate) {
+	loc := time.Local
+	startDate, _ := time.ParseInLocation("20060102", startDateStr, loc)
+	endDate, _ := time.ParseInLocation("20060102", endDateStr, loc)
+	// 构建完整的结束时间点
+	var punchEndTime time.Time
+	if column.EndTime != "" {
+		parsedTime, _ := time.Parse("15:04", column.EndTime)
+		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
+			parsedTime.Hour(), parsedTime.Minute(), 59, 0, loc)
+	} else {
+		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
+			23, 59, 59, 0, loc)
+	}
+	if punch.CreatedAt.Before(startDate) || punch.CreatedAt.After(punchEndTime) {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡时间不在栏目时间范围内，无法删除"))
 		return
 	}
@@ -727,9 +772,22 @@ func UpdatePunch(c *gin.Context) {
 
 	startDateStr := strconv.FormatInt(column.StartDate, 10)
 	endDateStr := strconv.FormatInt(column.EndDate, 10)
-	startDate, _ := time.Parse("20060102", startDateStr)
-	endDate, _ := time.Parse("20060102", endDateStr)
-	if punch.CreatedAt.Before(startDate) || punch.CreatedAt.After(endDate) {
+	loc := time.Local // 使用本地时区
+	startDate, _ := time.ParseInLocation("20060102", startDateStr, loc)
+	endDate, _ := time.ParseInLocation("20060102", endDateStr, loc)
+
+	// 构建完整的结束时间点
+	var punchEndTime time.Time
+	if column.EndTime != "" {
+		parsedTime, _ := time.Parse("15:04", column.EndTime)
+		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
+			parsedTime.Hour(), parsedTime.Minute(), 59, 0, loc)
+	} else {
+		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
+			23, 59, 59, 0, loc)
+	}
+
+	if punch.CreatedAt.Before(startDate) || punch.CreatedAt.After(punchEndTime) {
 		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡时间不在栏目时间范围内，无法修改"))
 		return
 	}

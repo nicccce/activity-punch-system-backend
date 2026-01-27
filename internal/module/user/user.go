@@ -517,7 +517,7 @@ func casCallback(c *gin.Context) {
 		}
 		user.Name = name
 		user.RoleID = 0
-		user.NickName = fmt.Sprintf("用户%s", user.StudentID)
+		user.NickName = name
 
 		if err := database.DB.Create(&user).Error; err != nil {
 			log.Error("数据库创建用户失败", "error", err, "cas_id", result.CasID)

@@ -12,15 +12,16 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/xuri/excelize/v2"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/xuri/excelize/v2"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var log = logger.New("Stats-Activity")
@@ -198,7 +199,8 @@ func RankExport(c *gin.Context) {
 		return
 	}
 	endDateStr := strconv.FormatInt(a.EndDate, 10)
-	endDate, _ := time.Parse("20060102", endDateStr)
+	loc := time.Local
+	endDate, _ := time.ParseInLocation("20060102", endDateStr, loc)
 	endDate = endDate.AddDate(0, 0, 1)
 	currentTime := time.Now()
 	if currentTime.Before(endDate) {
