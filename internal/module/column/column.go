@@ -21,43 +21,43 @@ func getTodayStart() time.Time {
 }
 
 type Column struct {
-	Name        string `json:"name" binding:"required"`       // 栏目名称
-	Description string `json:"description"`                   // 栏目描述
-	OwnerID     string `json:"owner_id" binding:"required"`   // 栏目创建人学号
-	ProjectID   uint   `json:"project_id" binding:"required"` // 关联的项目ID
-	StartDate   int64  `json:"start_date" binding:"required"` // 栏目开始日期
-	EndDate     int64  `json:"end_date" binding:"required"`   // 栏目结束日期
-	Avatar      string `json:"avatar"`                        // 栏目封面URL
+	Name        string `json:"name" binding:"required,max=75"` // 栏目名称
+	Description string `json:"description" binding:"max=200"`  // 栏目描述
+	OwnerID     string `json:"owner_id" binding:"required"`    // 栏目创建人学号
+	ProjectID   uint   `json:"project_id" binding:"required"`  // 关联的项目ID
+	StartDate   int64  `json:"start_date" binding:"required"`  // 栏目开始日期
+	EndDate     int64  `json:"end_date" binding:"required"`    // 栏目结束日期
+	Avatar      string `json:"avatar"`                         // 栏目封面URL
 }
 
 // ColumnCreateReq 定义创建栏目请求的结构体
 type ColumnCreateReq struct {
-	Name            string `json:"name" binding:"required"`       // 栏目名称
-	Description     string `json:"description"`                   // 栏目描述
-	ProjectID       uint   `json:"project_id" binding:"required"` // 关联的项目ID
-	StartDate       int64  `json:"start_date" binding:"required"` // 栏目开始日期
-	EndDate         int64  `json:"end_date" binding:"required"`   // 栏目结束日期
-	Avatar          string `json:"avatar"`                        // 栏目封面URL
-	DailyPunchLimit int    `json:"daily_punch_limit"`             // 每日可打卡次数，0表示不限次数
-	PointEarned     int    `json:"point_earned"`                  // 每次打卡可获得的积分
-	StartTime       string `json:"start_time"`                    // 每日打卡开始时间，格式为 "HH:MM"
-	EndTime         string `json:"end_time"`                      // 每日打卡结束时间，格式为 "HH:MM"
-	Optional        bool   `json:"optional"`                      // 特殊栏目，不计入完成所有栏目的判断
+	Name            string `json:"name" binding:"required,max=75"` // 栏目名称
+	Description     string `json:"description" binding:"max=200"`  // 栏目描述
+	ProjectID       uint   `json:"project_id" binding:"required"`  // 关联的项目ID
+	StartDate       int64  `json:"start_date" binding:"required"`  // 栏目开始日期
+	EndDate         int64  `json:"end_date" binding:"required"`    // 栏目结束日期
+	Avatar          string `json:"avatar"`                         // 栏目封面URL
+	DailyPunchLimit int    `json:"daily_punch_limit"`              // 每日可打卡次数，0表示不限次数
+	PointEarned     int    `json:"point_earned"`                   // 每次打卡可获得的积分
+	StartTime       string `json:"start_time"`                     // 每日打卡开始时间，格式为 "HH:MM"
+	EndTime         string `json:"end_time"`                       // 每日打卡结束时间，格式为 "HH:MM"
+	Optional        bool   `json:"optional"`                       // 特殊栏目，不计入完成所有栏目的判断
 }
 
 // ColumnUpdateReq 定义更新栏目请求的结构体，使用指针类型支持部分更新
 type ColumnUpdateReq struct {
-	Name            *string `json:"name"`              // 栏目名称，可选
-	Description     *string `json:"description"`       // 栏目描述，可选
-	ProjectID       *uint   `json:"project_id"`        // 关联的项目ID，可选
-	StartDate       *int64  `json:"start_date"`        // 栏目开始日期，可选
-	EndDate         *int64  `json:"end_date"`          // 栏目结束日期，可选
-	Avatar          *string `json:"avatar"`            // 栏目封面URL，可选
-	DailyPunchLimit *int    `json:"daily_punch_limit"` // 每日可打卡次数，0表示不限次数
-	PointEarned     *int    `json:"point_earned"`      // 每次打卡可获得的积分
-	StartTime       *string `json:"start_time"`        // 每日打卡开始时间，格式为 "HH:MM"
-	EndTime         *string `json:"end_time"`          // 每日打卡结束时间，格式为 "HH:MM"
-	Optional        *bool   `json:"optional"`          // 特殊栏目，不计入完成所有栏目的判断
+	Name            *string `json:"name" binding:"omitempty,max=75"`         // 栏目名称，可选
+	Description     *string `json:"description" binding:"omitempty,max=200"` // 栏目描述，可选
+	ProjectID       *uint   `json:"project_id"`                              // 关联的项目ID，可选
+	StartDate       *int64  `json:"start_date"`                              // 栏目开始日期，可选
+	EndDate         *int64  `json:"end_date"`                                // 栏目结束日期，可选
+	Avatar          *string `json:"avatar"`                                  // 栏目封面URL，可选
+	DailyPunchLimit *int    `json:"daily_punch_limit"`                       // 每日可打卡次数，0表示不限次数
+	PointEarned     *int    `json:"point_earned"`                            // 每次打卡可获得的积分
+	StartTime       *string `json:"start_time"`                              // 每日打卡开始时间，格式为 "HH:MM"
+	EndTime         *string `json:"end_time"`                                // 每日打卡结束时间，格式为 "HH:MM"
+	Optional        *bool   `json:"optional"`                                // 特殊栏目，不计入完成所有栏目的判断
 }
 
 // ColumnResponse 定义栏目响应结构体（不包含空的Project字段）

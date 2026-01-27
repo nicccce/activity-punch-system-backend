@@ -23,24 +23,24 @@ type Activity struct {
 
 // ActivityCreateReq 定义创建项目请求的结构体
 type ActivityCreateReq struct {
-	Name            string `json:"name" binding:"required"`       // 项目名称
-	Description     string `json:"description"`                   // 项目描述
-	StartDate       int64  `json:"start_date" binding:"required"` // 项目开始日期
-	EndDate         int64  `json:"end_date" binding:"required"`   // 项目结束日期
-	Avatar          string `json:"avatar"`                        // 项目封面URL
-	DailyPointLimit uint   `json:"daily_point_limit"`             // 每日积分上限，可选，0表示不限制
-	CompletionBonus uint   `json:"completion_bonus"`              // 完成活动所有栏目后的额外奖励积分，可选，0表示无奖励
+	Name            string `json:"name" binding:"required,max=75"` // 项目名称
+	Description     string `json:"description" binding:"max=200"`  // 项目描述
+	StartDate       int64  `json:"start_date" binding:"required"`  // 项目开始日期
+	EndDate         int64  `json:"end_date" binding:"required"`    // 项目结束日期
+	Avatar          string `json:"avatar"`                         // 项目封面URL
+	DailyPointLimit uint   `json:"daily_point_limit"`              // 每日积分上限，可选，0表示不限制
+	CompletionBonus uint   `json:"completion_bonus"`               // 完成活动所有栏目后的额外奖励积分，可选，0表示无奖励
 }
 
 // ActivityUpdateReq 定义更新项目请求的结构体，使用指针类型支持部分更新
 type ActivityUpdateReq struct {
-	Name            *string `json:"name"`              // 项目名称，可选
-	Description     *string `json:"description"`       // 项目描述，可选
-	StartDate       *int64  `json:"start_date"`        // 项目开始日期，可选
-	EndDate         *int64  `json:"end_date"`          // 项目结束日期，可选
-	Avatar          *string `json:"avatar"`            // 项目封面URL，可选
-	DailyPointLimit *uint   `json:"daily_point_limit"` // 每日积分上限，可选，0表示不限制
-	CompletionBonus *uint   `json:"completion_bonus"`  // 完成活动所有栏目后的额外奖励积分，可选，0表示无奖励
+	Name            *string `json:"name" binding:"omitempty,max=75"`         // 项目名称，可选
+	Description     *string `json:"description" binding:"omitempty,max=200"` // 项目描述，可选
+	StartDate       *int64  `json:"start_date"`                              // 项目开始日期，可选
+	EndDate         *int64  `json:"end_date"`                                // 项目结束日期，可选
+	Avatar          *string `json:"avatar"`                                  // 项目封面URL，可选
+	DailyPointLimit *uint   `json:"daily_point_limit"`                       // 每日积分上限，可选，0表示不限制
+	CompletionBonus *uint   `json:"completion_bonus"`                        // 完成活动所有栏目后的额外奖励积分，可选，0表示无奖励
 }
 
 // CreateActivity 处理创建项目请求

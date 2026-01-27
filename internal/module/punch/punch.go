@@ -33,7 +33,7 @@ func getTodayStart() time.Time {
 // PunchInsertRequest 定义插入打卡记录的请求体结构
 type PunchInsertRequest struct {
 	ColumnID int      `json:"column_id" binding:"required"`
-	Content  string   `json:"content" binding:"required,max=1000"`
+	Content  string   `json:"content" binding:"required,max=500"`
 	Images   []string `json:"images" binding:"omitempty,max=9"`
 }
 
@@ -207,7 +207,7 @@ type ReviewReq struct {
 	Status     int    `json:"status" binding:"required"` // 1: 通过, 2: 拒绝
 	Special    bool   `json:"special"`                   // 是否特殊打分
 	Score      int    `json:"score"`
-	Cause      string `json:"cause"`
+	Cause      string `json:"cause" binding:"max=200"`
 	MarkedBy   string `json:"marked_by"`   // 审核人
 	ClearScore bool   `json:"clear_score"` // 是否清除之前这条punch的分数(如果0或2的话
 }
@@ -725,7 +725,7 @@ func DeletePunch(c *gin.Context) {
 // PunchUpdateRequest 修改打卡请求体
 type PunchUpdateRequest struct {
 	ColumnID int      `json:"column_id" binding:"required"`
-	Content  string   `json:"content" binding:"required,max=1000"`
+	Content  string   `json:"content" binding:"required,max=500"`
 	Images   []string `json:"images" binding:"omitempty,max=9"`
 }
 

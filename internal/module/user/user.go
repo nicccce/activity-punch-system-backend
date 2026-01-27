@@ -194,7 +194,7 @@ func validatePasswordStrength(password string) error {
 
 type registerReq struct {
 	User
-	NickName string `json:"nick_name" binding:"required"`
+	NickName string `json:"nick_name" binding:"required,max=50"`
 }
 
 // Register 处理用户注册请求
@@ -362,11 +362,11 @@ func getMe(c *gin.Context) {
 }
 
 type updateUserReq struct {
-	NickName string `json:"nick_name"`
-	Avatar   string `json:"avatar"`
-	College  string `json:"college"`
-	Major    string `json:"major"`
-	Grade    string `json:"grade"`
+	NickName string `json:"nick_name" binding:"max=50"`
+	Avatar   string `json:"avatar" binding:"max=255"`
+	College  string `json:"college" binding:"max=100"`
+	Major    string `json:"major" binding:"max=100"`
+	Grade    string `json:"grade" binding:"max=20"`
 }
 
 func updateUser(c *gin.Context) {

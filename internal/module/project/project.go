@@ -11,8 +11,8 @@ import (
 )
 
 type Project struct {
-	Name        string `json:"name" binding:"required"`        // 项目名称
-	Description string `json:"description"`                    // 项目描述
+	Name        string `json:"name" binding:"required,max=75"` // 项目名称
+	Description string `json:"description" binding:"max=200"`  // 项目描述
 	OwnerID     string `json:"owner_id" binding:"required"`    // 项目创建人学号
 	ActivityID  uint   `json:"activity_id" binding:"required"` // 关联的活动ID
 	StartDate   int64  `json:"start_date" binding:"required"`  // 项目开始日期
@@ -22,8 +22,8 @@ type Project struct {
 
 // ProjectCreateReq 定义创建项目请求的结构体
 type ProjectCreateReq struct {
-	Name            string `json:"name" binding:"required"`        // 项目名称
-	Description     string `json:"description"`                    // 项目描述
+	Name            string `json:"name" binding:"required,max=75"` // 项目名称
+	Description     string `json:"description" binding:"max=200"`  // 项目描述
 	ActivityID      uint   `json:"activity_id" binding:"required"` // 关联的活动ID
 	StartDate       int64  `json:"start_date" binding:"required"`  // 项目开始日期
 	EndDate         int64  `json:"end_date" binding:"required"`    // 项目结束日期
@@ -34,14 +34,14 @@ type ProjectCreateReq struct {
 
 // ProjectUpdateReq 定义更新项目请求的结构体，使用指针类型支持部分更新
 type ProjectUpdateReq struct {
-	Name            *string `json:"name"`              // 项目名称，可选
-	Description     *string `json:"description"`       // 项目描述，可选
-	ActivityID      *uint   `json:"activity_id"`       // 关联的活动ID，可选
-	StartDate       *int64  `json:"start_date"`        // 项目开始日期，可选
-	EndDate         *int64  `json:"end_date"`          // 项目结束日期，可选
-	Avatar          *string `json:"avatar"`            // 项目封面URL，可选
-	CompletionBonus *uint   `json:"completion_bonus"`  // 完成项目所有栏目后的额外奖励积分，可选
-	ExemptFromLimit *bool   `json:"exempt_from_limit"` // 该项目的积分是否不计入活动每日积分上限，可选
+	Name            *string `json:"name" binding:"omitempty,max=75"`         // 项目名称，可选
+	Description     *string `json:"description" binding:"omitempty,max=200"` // 项目描述，可选
+	ActivityID      *uint   `json:"activity_id"`                             // 关联的活动ID，可选
+	StartDate       *int64  `json:"start_date"`                              // 项目开始日期，可选
+	EndDate         *int64  `json:"end_date"`                                // 项目结束日期，可选
+	Avatar          *string `json:"avatar"`                                  // 项目封面URL，可选
+	CompletionBonus *uint   `json:"completion_bonus"`                        // 完成项目所有栏目后的额外奖励积分，可选
+	ExemptFromLimit *bool   `json:"exempt_from_limit"`                       // 该项目的积分是否不计入活动每日积分上限，可选
 }
 
 // ProjectResponse 定义项目响应结构体（不包含空的Activity字段）
