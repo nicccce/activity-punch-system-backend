@@ -25,6 +25,7 @@ func Get() *slog.Logger {
 		}
 
 		var handler slog.Handler
+		//println(11111111, cfg.Log.FilePath, 22222)
 		if cfg.Mode == config.ModeRelease && cfg.Log.FilePath != "" {
 			// 在 release 模式下输出到文件，并启用日志轮转
 			lumberjackLogger := &lumberjack.Logger{

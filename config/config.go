@@ -17,7 +17,7 @@ type Config struct {
 	Mysql    Mysql
 	Redis    Redis
 	JWT      JWT
-	Log      Log
+	Log      Log      `mapstructure:"Log"`
 	Sdulogin Sdulogin `yaml:"Sdulogin" envconfig:"SDULOGIN"`
 	S3       S3
 }
@@ -63,10 +63,10 @@ type JWT struct {
 }
 
 type Log struct {
-	FilePath   string `envconfig:"LOG_FILE_PATH"`   // 日志文件路径
-	Level      string `envconfig:"LOG_LEVEL"`       // 日志级别：debug, info, warn, error
-	MaxSize    int    `envconfig:"LOG_MAX_SIZE"`    // 日志文件最大大小（MB）
-	MaxBackups int    `envconfig:"LOG_MAX_BACKUPS"` // 保留的旧日志文件数
-	MaxAge     int    `envconfig:"LOG_MAX_AGE"`     // 日志文件保留天数
-	Compress   bool   `envconfig:"LOG_COMPRESS"`    // 是否压缩旧日志文件
+	FilePath   string `envconfig:"LOG_FILE_PATH" mapstructure:"file_path"`     // 日志文件路径
+	Level      string `envconfig:"LOG_LEVEL" mapstructure:"level"`             // 日志级别：debug, info, warn, error
+	MaxSize    int    `envconfig:"LOG_MAX_SIZE" mapstructure:"max_size"`       // 日志文件最大大小（MB）
+	MaxBackups int    `envconfig:"LOG_MAX_BACKUPS" mapstructure:"max_backups"` // 保留的旧日志文件数
+	MaxAge     int    `envconfig:"LOG_MAX_AGE" mapstructure:"max_age"`         // 日志文件保留天数
+	Compress   bool   `envconfig:"LOG_COMPRESS" mapstructure:"compress"`       // 是否压缩旧日志文件
 }

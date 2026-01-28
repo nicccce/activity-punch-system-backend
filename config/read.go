@@ -3,7 +3,6 @@ package config
 import (
 	"activity-punch-system/tools"
 	"fmt"
-
 	"github.com/kelseyhightower/envconfig"
 	"github.com/spf13/viper"
 )
@@ -25,7 +24,9 @@ func Init(path ...string) {
 		fmt.Println("Config file not exist in ", filePath, ". Using environment variables.")
 		tools.PanicOnErr(envconfig.Process("", &c))
 	}
-
+	if IsDebug() {
+		println(fmt.Sprintf("%+v", Get()))
+	}
 }
 
 func Set(config Config) {
