@@ -38,7 +38,7 @@ type S3 struct {
 }
 
 type Sdulogin struct {
-	CasKey string `yaml:"caskey" envconfig:"CASKEY"`
+	CasKey string `yaml:"caskey" envconfig:"CASKEY" mapstructure:"caskey"`
 	Mode   Mode   `yaml:"mode" envconfig:"MODE"`
 }
 
