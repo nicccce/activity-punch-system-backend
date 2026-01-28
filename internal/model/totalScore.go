@@ -13,6 +13,7 @@ type TotalScore struct {
 type partialUserForTotalScore struct {
 	ID        uint   `gorm:"primaryKey" json:"user_id"`
 	StudentID string `gorm:"type:varchar(20);uniqueIndex;not null" json:"student_id"`
+	Name      string `gorm:"type:varchar(20);not null" json:"name"`
 	RoleID    int    `gorm:"default:0;not null" json:"role_id"`
 	NickName  string `gorm:"type:varchar(20);not null" json:"nick_name"`
 	Avatar    string `gorm:"type:varchar(255);" json:"avatar"`
