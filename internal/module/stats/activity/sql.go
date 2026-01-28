@@ -27,7 +27,7 @@ func getColumnIds(id uint) (columnIDs []uint, err error) {
 		Where("project.activity_id = ?", id).
 		Pluck("column.id", &columnIDs).Error
 	if err != nil {
-		log.Error("数据库 通过activity id获取column ids失败", "error", err.Error())
+		Log.Error("数据库 通过activity id获取column ids失败", "error", err.Error())
 		return nil, err
 	}
 	return columnIDs, nil
@@ -43,7 +43,7 @@ func selectRank(activityID uint, offset, limit int) ([]rank, int64, error) {
 	var total int64
 	wrapper := database.DB.Model(&model.TotalScore{}).Where("activity_id = ?", activityID)
 	if err := wrapper.Count(&total).Error; err != nil {
-		log.Error("数据库 查询活动排名失败", "error", err.Error())
+		Log.Error("数据库 查询活动排名失败", "error", err.Error())
 		return nil, 0, err
 	}
 	if err := wrapper.
@@ -57,7 +57,7 @@ func selectRank(activityID uint, offset, limit int) ([]rank, int64, error) {
 		Limit(limit).
 		Offset(offset).
 		Find(&ranks).Error; err != nil {
-		log.Error("数据库 查询活动排名失败", "error", err.Error())
+		Log.Error("数据库 查询活动排名失败", "error", err.Error())
 		return nil, 0, err
 	}
 	return ranks, total, nil
@@ -109,7 +109,7 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 	var continuityResult model.Continuity
 	if err := database.DB.Table("continuity").Where("activity_id = ? AND user_id = ?", activityID, userID).
 		Scan(&continuityResult).Error; err != nil {
-		log.Error("数据库 查询continuity失败", "error", err.Error())
+		Log.Error("数据库 查询continuity失败", "error", err.Error())
 		return err
 	}
 
@@ -120,7 +120,7 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 	if err := database.DB.Table("(?) AS ranked", subQuery).
 		Where("user_id = ?", userID).
 		Scan(&totalScoreResult).Error; err != nil {
-		log.Error("数据库 查询total_score失败", "error", err.Error())
+		Log.Error("数据库 查询total_score失败", "error", err.Error())
 		return err
 	}
 	var todayPuncherCount uint
@@ -128,7 +128,7 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 		Select("COUNT(DISTINCT user_id) AS tpuc").
 		Where("column_id IN (?) AND created_at >= ?", columnIDs, askTime-askTime%86400). //就不再created_at<=asktime了
 		Scan(&todayPuncherCount).Error; err != nil {
-		log.Error("数据库 查询punch获得当天已经打卡此活动人数失败", "error", err.Error())
+		Log.Error("数据库 查询punch获得当天已经打卡此活动人数失败", "error", err.Error())
 		return err
 	}
 	result.Continuity = continuityResult

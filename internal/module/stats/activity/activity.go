@@ -4,7 +4,6 @@ import (
 	"activity-punch-system/config"
 	"activity-punch-system/internal/global/database"
 	"activity-punch-system/internal/global/jwt"
-	"activity-punch-system/internal/global/logger"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
 	"activity-punch-system/internal/module/stats/tree"
@@ -12,6 +11,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -24,7 +24,7 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-var log = logger.New("Stats-Activity")
+var Log *slog.Logger
 
 // History 获取活动历史
 func History(c *gin.Context) {
@@ -38,7 +38,7 @@ func History(c *gin.Context) {
 	var result []model.Activity
 	err := selectHistory(user.ID, askTime, offset, limit, &result)
 	if err != nil {
-		log.Error("数据库 查询 activity 表错误", "error", err)
+		Log.Error("数据库 查询 activity 表错误", "error", err)
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
@@ -76,7 +76,7 @@ func Rank(c *gin.Context) {
 			if err = database.DB.Model(&model.Score{}).
 				Where("column_id = ? AND deleted_at IS NULL", columnId).
 				Find(&scores).Error; err != nil {
-				log.Error("数据库 通过column id查询 score 表错误", "error", err.Error())
+				Log.Error("数据库 通过column id查询 score 表错误", "error", err.Error())
 				response.Fail(c, response.ErrDatabase)
 				return
 			}
@@ -88,7 +88,7 @@ func Rank(c *gin.Context) {
 		//if err := database.DB.Model(&model.Score{}).
 		//	Where("column_id IN ? AND deleted_at IS NULL", columnIds).
 		//	Find(&scores).Error; err != nil {
-		//	log.Error("数据库查询 score 表错误", "error", err.Error())
+		//	Log.Error("数据库查询 score 表错误", "error", err.Error())
 		//	response.Fail(c, response.ErrDatabase)
 		//	return
 		//} else {
@@ -107,7 +107,7 @@ func Rank(c *gin.Context) {
 				},
 				Score: score,
 			}).Error; err != nil {
-				log.Error("数据库 更新 total_score 表错误", "error", err.Error())
+				Log.Error("数据库 更新 total_score 表错误", "error", err.Error())
 			}
 
 		}
@@ -153,7 +153,7 @@ func Detail(c *gin.Context) {
 			response.Fail(c, response.ErrNotFound)
 			return
 		}
-		log.Error("数据库 查询 score 表错误", "error", err.Error())
+		Log.Error("数据库 查询 score 表错误", "error", err.Error())
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
@@ -186,7 +186,7 @@ func Brief(c *gin.Context) {
 			response.Fail(c, response.ErrNotFound)
 			return
 		}
-		log.Error("查询 column 表错误", "error", err)
+		Log.Error("查询 column 表错误", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
@@ -216,33 +216,33 @@ func RankExport(c *gin.Context) {
 		dir := filepath.Dir(filename)
 
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			log.Error("创建目录失败", "dir", dir, "error", err.Error())
+			Log.Error("创建目录失败", "dir", dir, "error", err.Error())
 			response.Fail(c, response.ErrServerInternal)
 			return
 		}
 
 		ranks, err := selectActivityRankInExcel(a.ID)
 		if err != nil {
-			log.Error("数据库 查询活动排名失败", "error", err.Error())
+			Log.Error("数据库 查询活动排名失败", "error", err.Error())
 			response.Fail(c, response.ErrDatabase)
 			return
 		}
 		f := excelize.NewFile()
 		defer tools.PanicOnErr(f.Close())
 		if err := tools.ExportToExcel(f, fmt.Sprintf("活动%d(%s)得分排名", a.ID, a.Name), ranks); err != nil {
-			log.Error("导出excel错误", "error", err)
+			Log.Error("导出excel错误", "error", err)
 			response.Fail(c, response.ErrServerInternal)
 			return
 		}
 		_ = f.DeleteSheet("Sheet1")
 		if err := f.SaveAs(filename); err != nil {
-			log.Error("保存文件错误", "error", err.Error())
+			Log.Error("保存文件错误", "error", err.Error())
 			response.Fail(c, response.ErrServerInternal)
 			return
 		}
 	}
 	if err := tools.SendStoredFile(c, filename, fmt.Sprintf("活动%d(%s)得分排名", a.ID, a.Name), tools.ExcelContentType); err != nil {
-		log.Error("发送文件错误", "error", err.Error())
+		Log.Error("发送文件错误", "error", err.Error())
 		response.Fail(c, response.ErrServerInternal)
 	}
 }
@@ -258,36 +258,36 @@ func Export(c *gin.Context) {
 
 	ranks, err := selectActivityRankInExcel(a.ID)
 	if err != nil {
-		log.Error("数据库 查询活动排名失败", "error", err.Error())
+		Log.Error("数据库 查询活动排名失败", "error", err.Error())
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
 
 	if err := tools.ExportToExcel(f, fmt.Sprintf("活动%d(%s)得分排名", a.ID, a.Name), ranks); err != nil {
-		log.Error("导出excel错误", "error", err)
+		Log.Error("导出excel错误", "error", err)
 		response.Fail(c, response.ErrServerInternal)
 		return
 	}
 	projects := []model.Project{}
 	if err := database.DB.Model(&model.Project{}).Where("activity_id = ? AND deleted_at IS NULL", a.ID).Find(&projects).Error; err != nil {
-		log.Error("查询 project 表错误", "error", err)
+		Log.Error("查询 project 表错误", "error", err)
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
 	if err := tools.ExportToExcel(f, fmt.Sprintf("活动%d(%s)下的项目", a.ID, a.Name), projects); err != nil {
-		log.Error("导出excel错误", "error", err)
+		Log.Error("导出excel错误", "error", err)
 		response.Fail(c, response.ErrServerInternal)
 		return
 	}
 	for _, p := range projects {
 		columns := []model.Column{}
 		if err := database.DB.Model(&model.Column{}).Where("project_id = ? AND deleted_at IS NULL", p.ID).Find(&columns).Error; err != nil {
-			log.Error("查询 column 表错误", "error", err)
+			Log.Error("查询 column 表错误", "error", err)
 			response.Fail(c, response.ErrDatabase)
 			return
 		}
 		if err := tools.ExportToExcel(f, fmt.Sprintf("项目%d(%s)下的栏目", p.ID, p.Name[0:min(10, len(p.Name))]), columns); err != nil {
-			log.Error("导出excel错误", "error", err)
+			Log.Error("导出excel错误", "error", err)
 			response.Fail(c, response.ErrServerInternal)
 			return
 		}
@@ -295,23 +295,23 @@ func Export(c *gin.Context) {
 			column.Name = column.Name[0:min(10, len(column.Name))]
 			punches := []model.Punch{}
 			if err := database.DB.Model(&model.Punch{}).Where("column_id = ? AND deleted_at IS NULL", column.ID).Find(&punches).Error; err != nil {
-				log.Error("查询 punch 表错误", "error", err)
+				Log.Error("查询 punch 表错误", "error", err)
 				response.Fail(c, response.ErrDatabase)
 				return
 			}
 			if err := tools.ExportToExcel(f, fmt.Sprintf("栏目%d(%s)的打卡记录", column.ID, column.Name), punches); err != nil {
-				log.Error("导出excel错误", "error", err)
+				Log.Error("导出excel错误", "error", err)
 				response.Fail(c, response.ErrServerInternal)
 				return
 			}
 			scores := []model.Score{}
 			if err := database.DB.Model(&model.Score{}).Where("column_id = ? AND deleted_at IS NULL", column.ID).Find(&scores).Error; err != nil {
-				log.Error("查询 score 表错误", "error", err)
+				Log.Error("查询 score 表错误", "error", err)
 				response.Fail(c, response.ErrDatabase)
 				return
 			}
 			if err := tools.ExportToExcel(f, fmt.Sprintf("栏目%d(%s)的得分记录", column.ID, column.Name), scores); err != nil {
-				log.Error("导出excel错误", "error", err)
+				Log.Error("导出excel错误", "error", err)
 				response.Fail(c, response.ErrServerInternal)
 				return
 			}
@@ -323,7 +323,7 @@ func Export(c *gin.Context) {
 
 	buf := &bytes.Buffer{}
 	if err := f.Write(buf); err != nil {
-		log.Error("导出excel错误", "error", err)
+		Log.Error("导出excel错误", "error", err)
 		response.Fail(c, response.ErrServerInternal)
 		return
 	}
@@ -331,7 +331,7 @@ func Export(c *gin.Context) {
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("Content-Disposition", "attachment; filename*=UTF-8''"+url.QueryEscape(a.Name+".xlsx"))
 	if _, err := c.Writer.Write(buf.Bytes()); err != nil {
-		log.Error("导出excel错误", "error", err)
+		Log.Error("导出excel错误", "error", err)
 		response.Fail(c, response.ErrServerInternal)
 	}
 
@@ -363,14 +363,14 @@ func activityIdValidator(c *gin.Context) (*model.Activity, bool) {
 		Where("id = ? AND deleted_at IS NULL", activityId).
 		Limit(2).Find(&a)
 	if r.Error != nil {
-		log.Error("查询 activity 表错误", "error", r.Error)
+		Log.Error("查询 activity 表错误", "error", r.Error)
 		response.Fail(c, response.ErrDatabase.WithOrigin(r.Error))
 		return nil, false
 	} else if len(a) == 0 {
 		response.Fail(c, response.ErrNotFound)
 		return nil, false
 	} else if len(a) > 1 {
-		log.Warn("查询 activity 表警告", "error", "重复 columnId")
+		Log.Warn("查询 activity 表警告", "error", "重复 columnId")
 	}
 	return &a[0], true
 }

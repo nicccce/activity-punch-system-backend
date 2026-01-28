@@ -2,6 +2,8 @@ package stats
 
 import (
 	"activity-punch-system/internal/global/logger"
+	"activity-punch-system/internal/module/stats/activity"
+	"activity-punch-system/internal/module/stats/column"
 	"log/slog"
 )
 
@@ -15,4 +17,6 @@ func (*ModuleStats) GetName() string {
 
 func (*ModuleStats) Init() {
 	log = logger.New("Stats")
+	column.Log = log
+	activity.Log = log
 }

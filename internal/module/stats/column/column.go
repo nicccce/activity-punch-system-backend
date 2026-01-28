@@ -3,20 +3,20 @@ package column
 import (
 	"activity-punch-system/internal/global/database"
 	"activity-punch-system/internal/global/jwt"
-	"activity-punch-system/internal/global/logger"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
 	"activity-punch-system/tools"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
+	"log/slog"
 	"math"
 )
 
 // Record todo: 此仅作为占位
 type Record struct{}
 
-var log = logger.New("Stats-Column")
+var Log *slog.Logger
 
 // Brief 获取某栏目的今日(若给定时间则为给定时间当天最早时间之后的)已经打卡人数,
 // 请求者参与打卡次数,
@@ -36,7 +36,7 @@ func Brief(c *gin.Context) {
 	var result briefResult
 	askTime := tools.GetTime(c)
 	if err := briefStats(columnId, user.Id, askTime, &result); err != nil {
-		log.Error("查询 column 表错误", "error", err)
+		Log.Error("查询 column 表错误", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
@@ -60,7 +60,7 @@ func Rank(c *gin.Context) {
 		err = rankByScore(columnId, askTime, offset, limit, &result)
 	}
 	if err != nil {
-		log.Error("查询 column 表错误", "error", err)
+		Log.Error("查询 column 表错误", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
@@ -79,7 +79,7 @@ func Rank(c *gin.Context) {
 //	askTime := tool.GetTime(c)
 //	err := selectRecordsByStudentId(user.Id, askTime, offset, limit, &result)
 //	if err != nil {
-//		log.Error("查询 column 表错误", "error", err)
+//		Log.Error("查询 column 表错误", "error", err)
 //		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 //		return
 //	}
@@ -96,7 +96,7 @@ func Export2Json(whereUser bool) gin.HandlerFunc {
 		askTime := tools.GetTime(c)
 		err := selectRecords(columnId, askTime, offset, limit, &records, "")
 		if err != nil {
-			log.Error("查询 column 表错误", "error", err)
+			Log.Error("查询 column 表错误", "error", err)
 			response.Fail(c, response.ErrDatabase.WithOrigin(err))
 			return
 		}
@@ -115,7 +115,7 @@ func Export2Excel() gin.HandlerFunc {
 		askTime := tools.GetTime(c)
 		err := selectRecords(columnId, askTime, 0, math.MaxInt, &records, "")
 		if err != nil {
-			log.Error("查询 column 表错误", "error", err)
+			Log.Error("查询 column 表错误", "error", err)
 			response.Fail(c, response.ErrDatabase.WithOrigin(err))
 			return
 		}
@@ -123,7 +123,7 @@ func Export2Excel() gin.HandlerFunc {
 		defer tools.PanicOnErr(f.Close())
 		err = tools.ExportToExcel(f, "", records)
 		if err != nil {
-			log.Error("导出 excel 错误", "error", err)
+			Log.Error("导出 excel 错误", "error", err)
 			response.Fail(c, response.ErrDatabase.WithOrigin(err))
 			return
 		}
@@ -155,14 +155,14 @@ func columnIdValidator(c *gin.Context) (string, bool) {
 			Count(&count)
 
 		if r.Error != nil {
-			log.Error("查询 column 表错误", "error", r.Error)
+			Log.Error("查询 column 表错误", "error", r.Error)
 			response.Fail(c, response.ErrDatabase.WithOrigin(r.Error))
 			return "", false
 		} else if count == 0 {
 			response.Fail(c, response.ErrNotFound)
 			return "", false
 		} else if count > 1 {
-			log.Warn("查询 column 表警告", "error", "重复 columnId")
+			Log.Warn("查询 column 表警告", "error", "重复 columnId")
 		}
 	}
 	return columnId, true
