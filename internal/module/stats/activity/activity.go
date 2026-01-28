@@ -198,6 +198,7 @@ func RankExport(c *gin.Context) {
 	if !ok {
 		return
 	}
+	a.Name = a.Name[0:min(10, len(a.Name))]
 	endDateStr := strconv.FormatInt(a.EndDate, 10)
 	loc := time.Local
 	endDate, _ := time.ParseInLocation("20060102", endDateStr, loc)
@@ -251,6 +252,7 @@ func Export(c *gin.Context) {
 	if !ok {
 		return
 	}
+	a.Name = a.Name[0:min(10, len(a.Name))]
 	f := excelize.NewFile()
 	defer tools.PanicOnErr(f.Close())
 
@@ -284,12 +286,13 @@ func Export(c *gin.Context) {
 			response.Fail(c, response.ErrDatabase)
 			return
 		}
-		if err := tools.ExportToExcel(f, fmt.Sprintf("项目%d(%s)下的栏目", p.ID, p.Name), columns); err != nil {
+		if err := tools.ExportToExcel(f, fmt.Sprintf("项目%d(%s)下的栏目", p.ID, p.Name[0:min(10, len(p.Name))]), columns); err != nil {
 			log.Error("导出excel错误", "error", err)
 			response.Fail(c, response.ErrServerInternal)
 			return
 		}
 		for _, column := range columns {
+			column.Name = column.Name[0:min(10, len(column.Name))]
 			punches := []model.Punch{}
 			if err := database.DB.Model(&model.Punch{}).Where("column_id = ? AND deleted_at IS NULL", column.ID).Find(&punches).Error; err != nil {
 				log.Error("查询 punch 表错误", "error", err)

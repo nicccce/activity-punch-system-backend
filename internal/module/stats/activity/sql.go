@@ -65,6 +65,7 @@ func selectRank(activityID uint, offset, limit int) ([]rank, int64, error) {
 
 type activityRankInExcel struct {
 	Rank      uint   `gorm:"column:ranks" json:"rank" excel:"排名"`
+	Name      string `gorm:"column:name" json:"name" excel:"姓名"`
 	NickName  string `gorm:"column:nick_name" json:"nick_name" excel:"昵称"`
 	Score     uint   `gorm:"not null" json:"score" excel:"分数"`
 	StudentID string `gorm:"column:student_id" json:"student_id" excel:"学号"`
@@ -80,6 +81,7 @@ func selectActivityRankInExcel(activityID uint) ([]activityRankInExcel, error) {
 		Select(`
 			u.id,
         	u.student_id,
+        	u.name,
         	u.nick_name,
         	u.college,
         	u.major,
