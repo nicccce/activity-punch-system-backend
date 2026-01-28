@@ -52,7 +52,7 @@ Redis:
     DB: 0
 
 # 日志配置
-log:
+Log:
     # 日志文件路径，仅在 release 模式下生效
     # 例如 "/var/log/punch.log" 表示日志输出到该文件
     file_path: /var/log/punch.log
