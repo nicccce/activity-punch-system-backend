@@ -1,18 +1,21 @@
 package model
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 )
 
 type Score struct {
 	Model
 	//我想还是uint好吧，前端自己做"汇率转换"
-	Count    uint   `gorm:"not null" json:"count"  excel:"分数"`
-	UserID   uint   `gorm:"not null" json:"-" excel:"用户id"`
-	MarkedBy string `gorm:"type:varchar(50);not null" json:"marked_by" excel:"打分人"`
-	Cause    string `gorm:"type:varchar(255);not null" json:"cause" excel:"打分原因"`
-	PunchID  uint   `gorm:"not null" json:"-" excel:"触发得分的打卡记录id"`
-	ColumnID uint   `gorm:"not null" json:"-" excel:"-"`
+	Count     uint      `gorm:"not null" json:"count"  excel:"分数"`
+	UserID    uint      `gorm:"not null" json:"-" excel:"用户id"`
+	MarkedBy  string    `gorm:"type:varchar(50);not null" json:"marked_by" excel:"打分人"`
+	Cause     string    `gorm:"type:varchar(255);not null" json:"cause" excel:"打分原因"`
+	PunchID   uint      `gorm:"not null" json:"-" excel:"触发得分的打卡记录id"`
+	ColumnID  uint      `gorm:"not null" json:"-" excel:"-"`
+	PunchDate time.Time `gorm:"not null;index" json:"punch_date" excel:"打卡日期"` // 打卡日期（打卡记录创建时间对应的那一天零点）
 
 	Punch partialPunchForScore `gorm:"foreignKey:PunchID;references:ID" excel:"-"`
 	//不该这样的，但这样把ColumnID也放在了表里很方便应该是不负责打分部分的NIA_sai做强制"实时求和"统计(这种玩意有必要写吗？性能差不说，ACID的A是拿来看的吗？

@@ -306,12 +306,13 @@ func checkActivityCompletion(userID uint, activityID uint, dayStart time.Time) (
 }
 
 // hasReceivedProjectCompletionBonus 检查用户在指定日期是否已领取过项目完成奖励
+// 使用 punch_date 字段判断，该字段记录的是打卡日期而非积分记录创建日期
 func hasReceivedProjectCompletionBonus(userID uint, projectID uint, dayStart time.Time) (bool, error) {
 	dayEnd := dayStart.Add(24 * time.Hour)
 	var count int64
 
 	err := database.DB.Model(&model.Score{}).
-		Where("user_id = ? AND cause = ? AND created_at >= ? AND created_at < ? AND deleted_at IS NULL",
+		Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
 			userID, fmt.Sprintf("ProjectCompletionBonus#%d", projectID), dayStart, dayEnd).
 		Count(&count).Error
 
@@ -319,12 +320,13 @@ func hasReceivedProjectCompletionBonus(userID uint, projectID uint, dayStart tim
 }
 
 // hasReceivedActivityCompletionBonus 检查用户在指定日期是否已领取过活动完成奖励
+// 使用 punch_date 字段判断，该字段记录的是打卡日期而非积分记录创建日期
 func hasReceivedActivityCompletionBonus(userID uint, activityID uint, dayStart time.Time) (bool, error) {
 	dayEnd := dayStart.Add(24 * time.Hour)
 	var count int64
 
 	err := database.DB.Model(&model.Score{}).
-		Where("user_id = ? AND cause = ? AND created_at >= ? AND created_at < ? AND deleted_at IS NULL",
+		Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
 			userID, fmt.Sprintf("ActivityCompletionBonus#%d", activityID), dayStart, dayEnd).
 		Count(&count).Error
 
@@ -440,12 +442,13 @@ func ReviewPunch(c *gin.Context) {
 		}
 
 		score := model.Score{
-			UserID:   punch.UserID,
-			Count:    uint(scoreToAward),
-			Cause:    cause,
-			MarkedBy: fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
-			PunchID:  punch.ID,
-			ColumnID: uint(punch.ColumnID),
+			UserID:    punch.UserID,
+			Count:     uint(scoreToAward),
+			Cause:     cause,
+			MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+			PunchID:   punch.ID,
+			ColumnID:  uint(punch.ColumnID),
+			PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
 		}
 		if err := tx.Create(&score).Error; err != nil {
 			return false, "插入打分记录失败"
@@ -474,12 +477,13 @@ func ReviewPunch(c *gin.Context) {
 
 		// 发放项目完成奖励
 		bonusScore := model.Score{
-			UserID:   punch.UserID,
-			Count:    project.CompletionBonus,
-			Cause:    fmt.Sprintf("ProjectCompletionBonus#%d", projectID),
-			MarkedBy: fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
-			PunchID:  punch.ID,
-			ColumnID: uint(punch.ColumnID),
+			UserID:    punch.UserID,
+			Count:     project.CompletionBonus,
+			Cause:     fmt.Sprintf("ProjectCompletionBonus#%d", projectID),
+			MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+			PunchID:   punch.ID,
+			ColumnID:  uint(punch.ColumnID),
+			PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
 		}
 		if err := tx.Create(&bonusScore).Error; err != nil {
 			log.Warn("发放项目完成奖励失败", "err", err.Error())
@@ -508,12 +512,13 @@ func ReviewPunch(c *gin.Context) {
 
 		// 发放活动完成奖励
 		bonusScore := model.Score{
-			UserID:   punch.UserID,
-			Count:    activity.CompletionBonus,
-			Cause:    fmt.Sprintf("ActivityCompletionBonus#%d", activityID),
-			MarkedBy: fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
-			PunchID:  punch.ID,
-			ColumnID: uint(punch.ColumnID),
+			UserID:    punch.UserID,
+			Count:     activity.CompletionBonus,
+			Cause:     fmt.Sprintf("ActivityCompletionBonus#%d", activityID),
+			MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+			PunchID:   punch.ID,
+			ColumnID:  uint(punch.ColumnID),
+			PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
 		}
 		if err := tx.Create(&bonusScore).Error; err != nil {
 			log.Warn("发放活动完成奖励失败", "err", err.Error())
@@ -593,6 +598,48 @@ func ReviewPunch(c *gin.Context) {
 			res.AddedScore -= int(s.Count)
 		}
 		log.Info("扣分完成", "punch_id", punch.ID, "user_id", punch.UserID, "deducted_score", -res.AddedScore)
+
+		// 检查驳回后是否仍满足项目完成条件，如果不满足则撤销奖励
+		if project.CompletionBonus > 0 {
+			complete, err := checkProjectCompletion(punch.UserID, projectID, punchDayStart)
+			if err == nil && !complete {
+				// 不再满足条件，删除该打卡日期的项目完成奖励（如果存在）
+				var bonusScore model.Score
+				punchDayEnd := punchDayStart.Add(24 * time.Hour)
+				if err := tx.Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
+					punch.UserID, fmt.Sprintf("ProjectCompletionBonus#%d", projectID), punchDayStart, punchDayEnd).
+					First(&bonusScore).Error; err == nil {
+					if err := tx.Delete(&bonusScore).Error; err != nil {
+						log.Warn("撤销项目完成奖励失败", "err", err.Error())
+					} else {
+						res.AddedScore -= int(bonusScore.Count)
+						res.ProjectBonus = -int(bonusScore.Count)
+						log.Info("撤销项目完成奖励", "punch_id", punch.ID, "user_id", punch.UserID, "bonus", bonusScore.Count)
+					}
+				}
+			}
+		}
+
+		// 检查驳回后是否仍满足活动完成条件，如果不满足则撤销奖励
+		if activity.CompletionBonus > 0 {
+			complete, err := checkActivityCompletion(punch.UserID, activityID, punchDayStart)
+			if err == nil && !complete {
+				// 不再满足条件，删除该打卡日期的活动完成奖励（如果存在）
+				var bonusScore model.Score
+				punchDayEnd := punchDayStart.Add(24 * time.Hour)
+				if err := tx.Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
+					punch.UserID, fmt.Sprintf("ActivityCompletionBonus#%d", activityID), punchDayStart, punchDayEnd).
+					First(&bonusScore).Error; err == nil {
+					if err := tx.Delete(&bonusScore).Error; err != nil {
+						log.Warn("撤销活动完成奖励失败", "err", err.Error())
+					} else {
+						res.AddedScore -= int(bonusScore.Count)
+						res.ActivityBonus = -int(bonusScore.Count)
+						log.Info("撤销活动完成奖励", "punch_id", punch.ID, "user_id", punch.UserID, "bonus", bonusScore.Count)
+					}
+				}
+			}
+		}
 	}
 	response.Success(c, res)
 }
@@ -767,9 +814,9 @@ func UpdatePunch(c *gin.Context) {
 		return
 	}
 
-	// 审核通过的打卡不允许修改
-	if punch.Status == 1 {
-		response.Fail(c, response.ErrInvalidRequest.WithTips("审核通过的打卡记录不允许修改"))
+	// 已审核的打卡不允许修改（无论通过还是拒绝）
+	if punch.Status != 0 {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("已审核的打卡记录不允许修改"))
 		return
 	}
 
@@ -779,31 +826,51 @@ func UpdatePunch(c *gin.Context) {
 		return
 	}
 
+	// 修改打卡视同正常打卡，检查当前时间是否在栏目日期范围内
+	now := time.Now().In(beijingLocation)
 	startDateStr := strconv.FormatInt(column.StartDate, 10)
 	endDateStr := strconv.FormatInt(column.EndDate, 10)
-	loc := time.Local // 使用本地时区
-	startDate, _ := time.ParseInLocation("20060102", startDateStr, loc)
-	endDate, _ := time.ParseInLocation("20060102", endDateStr, loc)
+	startDate, _ := time.ParseInLocation("20060102", startDateStr, beijingLocation)
+	endDate, _ := time.ParseInLocation("20060102", endDateStr, beijingLocation)
+	// endDate 需要加一天再减一秒，表示当天的最后一刻
+	endDate = endDate.Add(24*time.Hour - time.Second)
 
-	// 构建完整的结束时间点
-	var punchEndTime time.Time
-	if column.EndTime != "" {
-		parsedTime, _ := time.Parse("15:04", column.EndTime)
-		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
-			parsedTime.Hour(), parsedTime.Minute(), 59, 0, loc)
-	} else {
-		punchEndTime = time.Date(endDate.Year(), endDate.Month(), endDate.Day(),
-			23, 59, 59, 0, loc)
-	}
-
-	if punch.CreatedAt.Before(startDate) || punch.CreatedAt.After(punchEndTime) {
-		response.Fail(c, response.ErrInvalidRequest.WithTips("打卡时间不在栏目时间范围内，无法修改"))
+	if now.Before(startDate) || now.After(endDate) {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在栏目日期范围内，无法修改打卡"))
 		return
 	}
 
-	// 修改打卡内容
+	// 检查每日打卡时间限制（修改打卡视同正常打卡）
+	if column.StartTime != "" && column.EndTime != "" {
+		currentTimeStr := now.Format("15:04")
+		currentParsed, _ := time.Parse("15:04", currentTimeStr)
+		startTime, err1 := time.Parse("15:04", column.StartTime)
+		endTime, err2 := time.Parse("15:04", column.EndTime)
+		if err1 != nil || err2 != nil {
+			response.Fail(c, response.ErrInvalidRequest.WithTips("栏目打卡时间配置错误"))
+			return
+		}
+
+		// 处理跨天情况（例如 22:00 - 06:00）
+		if endTime.Before(startTime) {
+			// 跨天情况：当前时间在开始时间之后或结束时间之前
+			if currentParsed.Before(startTime) && currentParsed.After(endTime) {
+				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在打卡时间范围内，无法修改打卡"))
+				return
+			}
+		} else {
+			// 不跨天情况：当前时间必须在开始和结束时间之间
+			if currentParsed.Before(startTime) || currentParsed.After(endTime) {
+				response.Fail(c, response.ErrInvalidRequest.WithTips("当前时间不在打卡时间范围内，无法修改打卡"))
+				return
+			}
+		}
+	}
+
+	// 修改打卡内容，并更新打卡时间为当前时间
 	punch.Content = req.Content
 	punch.ColumnID = req.ColumnID
+	punch.CreatedAt = now // 修改打卡视同重新打卡，更新打卡时间
 	if err := database.DB.Save(&punch).Error; err != nil {
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
