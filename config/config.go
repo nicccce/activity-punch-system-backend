@@ -58,8 +58,8 @@ type Redis struct {
 }
 
 type JWT struct {
-	AccessSecret string `envconfig:"ACCESS_SECRET"`
-	AccessExpire int64  `envconfig:"ACCESS_EXPIRE"`
+	AccessSecret string `envconfig:"ACCESS_SECRET" mapstructure:"access_secret"`
+	AccessExpire int64  `envconfig:"ACCESS_EXPIRE" mapstructure:"access_expire"`
 }
 
 type Log struct {
