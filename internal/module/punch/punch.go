@@ -30,6 +30,12 @@ func getTodayStart() time.Time {
 	return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, beijingLocation)
 }
 
+// getDayStart 获取指定时间在北京时区对应那一天的零点
+func getDayStart(t time.Time) time.Time {
+	inBeijing := t.In(beijingLocation)
+	return time.Date(inBeijing.Year(), inBeijing.Month(), inBeijing.Day(), 0, 0, 0, 0, beijingLocation)
+}
+
 // PunchInsertRequest 定义插入打卡记录的请求体结构
 type PunchInsertRequest struct {
 	ColumnID int      `json:"column_id" binding:"required"`
@@ -222,26 +228,26 @@ type reviewRes struct {
 	ActivityComplete bool `json:"activity_complete"` // 是否完成活动所有栏目
 }
 
-// getTodayPointsForActivity 获取用户今日在活动中已获得的积分（排除不计入上限的项目和特殊栏目）
-func getTodayPointsForActivity(userID uint, activityID uint) (uint, error) {
-	today := getTodayStart()
+// getDayPointsForActivity 获取用户在指定日期在活动中已获得的积分（排除不计入上限的项目和特殊栏目）
+func getDayPointsForActivity(userID uint, activityID uint, dayStart time.Time) (uint, error) {
+	dayEnd := dayStart.Add(24 * time.Hour)
 	var totalPoints uint
 
-	// 查询今日获得的积分，排除 exempt_from_limit = true 的项目和 optional = true 的特殊栏目
+	// 查询指定日期获得的积分，排除 exempt_from_limit = true 的项目和 optional = true 的特殊栏目
 	err := database.DB.Table("score").
 		Select("COALESCE(SUM(score.count), 0)").
 		Joins("JOIN `column` ON score.column_id = `column`.id").
 		Joins("JOIN project ON `column`.project_id = project.id").
-		Where("score.user_id = ? AND project.activity_id = ? AND score.created_at >= ? AND score.deleted_at IS NULL AND project.exempt_from_limit = ? AND `column`.optional = ?",
-			userID, activityID, today, false, false).
+		Where("score.user_id = ? AND project.activity_id = ? AND score.created_at >= ? AND score.created_at < ? AND score.deleted_at IS NULL AND project.exempt_from_limit = ? AND `column`.optional = ?",
+			userID, activityID, dayStart, dayEnd, false, false).
 		Scan(&totalPoints).Error
 
 	return totalPoints, err
 }
 
-// checkProjectCompletion 检查用户今日是否完成了项目下所有必需栏目的打卡（排除特殊栏目）
-func checkProjectCompletion(userID uint, projectID uint) (bool, error) {
-	today := getTodayStart()
+// checkProjectCompletion 检查用户在指定日期是否完成了项目下所有必需栏目的打卡（排除特殊栏目）
+func checkProjectCompletion(userID uint, projectID uint, dayStart time.Time) (bool, error) {
+	dayEnd := dayStart.Add(24 * time.Hour)
 
 	// 获取项目下所有必需栏目数量（排除 optional = true 的特殊栏目）
 	var totalColumns int64
@@ -253,13 +259,13 @@ func checkProjectCompletion(userID uint, projectID uint) (bool, error) {
 		return false, nil
 	}
 
-	// 获取用户今日已打卡且审核通过的必需栏目数量（去重，排除特殊栏目）
+	// 获取用户在指定日期已打卡且审核通过的必需栏目数量（去重，排除特殊栏目）
 	var punchedColumns int64
 	if err := database.DB.Table("punch").
 		Select("COUNT(DISTINCT column_id)").
 		Joins("JOIN `column` ON punch.column_id = `column`.id").
-		Where("punch.user_id = ? AND `column`.project_id = ? AND punch.created_at >= ? AND punch.status = 1 AND punch.deleted_at IS NULL AND `column`.optional = ?",
-			userID, projectID, today, false).
+		Where("punch.user_id = ? AND `column`.project_id = ? AND punch.created_at >= ? AND punch.created_at < ? AND punch.status = 1 AND punch.deleted_at IS NULL AND `column`.optional = ?",
+			userID, projectID, dayStart, dayEnd, false).
 		Scan(&punchedColumns).Error; err != nil {
 		return false, err
 	}
@@ -267,9 +273,9 @@ func checkProjectCompletion(userID uint, projectID uint) (bool, error) {
 	return punchedColumns >= totalColumns, nil
 }
 
-// checkActivityCompletion 检查用户今日是否完成了活动下所有必需栏目的打卡（排除特殊栏目）
-func checkActivityCompletion(userID uint, activityID uint) (bool, error) {
-	today := getTodayStart()
+// checkActivityCompletion 检查用户在指定日期是否完成了活动下所有必需栏目的打卡（排除特殊栏目）
+func checkActivityCompletion(userID uint, activityID uint, dayStart time.Time) (bool, error) {
+	dayEnd := dayStart.Add(24 * time.Hour)
 
 	// 获取活动下所有必需栏目数量（通过项目关联，排除 optional = true 的特殊栏目）
 	var totalColumns int64
@@ -284,14 +290,14 @@ func checkActivityCompletion(userID uint, activityID uint) (bool, error) {
 		return false, nil
 	}
 
-	// 获取用户今日已打卡且审核通过的必需栏目数量（去重，排除特殊栏目）
+	// 获取用户在指定日期已打卡且审核通过的必需栏目数量（去重，排除特殊栏目）
 	var punchedColumns int64
 	if err := database.DB.Table("punch").
 		Select("COUNT(DISTINCT punch.column_id)").
 		Joins("JOIN `column` ON punch.column_id = `column`.id").
 		Joins("JOIN project ON `column`.project_id = project.id").
-		Where("punch.user_id = ? AND project.activity_id = ? AND punch.created_at >= ? AND punch.status = 1 AND punch.deleted_at IS NULL AND `column`.optional = ?",
-			userID, activityID, today, false).
+		Where("punch.user_id = ? AND project.activity_id = ? AND punch.created_at >= ? AND punch.created_at < ? AND punch.status = 1 AND punch.deleted_at IS NULL AND `column`.optional = ?",
+			userID, activityID, dayStart, dayEnd, false).
 		Scan(&punchedColumns).Error; err != nil {
 		return false, err
 	}
@@ -299,27 +305,27 @@ func checkActivityCompletion(userID uint, activityID uint) (bool, error) {
 	return punchedColumns >= totalColumns, nil
 }
 
-// hasReceivedProjectCompletionBonus 检查用户今日是否已领取过项目完成奖励
-func hasReceivedProjectCompletionBonus(userID uint, projectID uint) (bool, error) {
-	today := getTodayStart()
+// hasReceivedProjectCompletionBonus 检查用户在指定日期是否已领取过项目完成奖励
+func hasReceivedProjectCompletionBonus(userID uint, projectID uint, dayStart time.Time) (bool, error) {
+	dayEnd := dayStart.Add(24 * time.Hour)
 	var count int64
 
 	err := database.DB.Model(&model.Score{}).
-		Where("user_id = ? AND cause = ? AND created_at >= ? AND deleted_at IS NULL",
-			userID, fmt.Sprintf("ProjectCompletionBonus#%d", projectID), today).
+		Where("user_id = ? AND cause = ? AND created_at >= ? AND created_at < ? AND deleted_at IS NULL",
+			userID, fmt.Sprintf("ProjectCompletionBonus#%d", projectID), dayStart, dayEnd).
 		Count(&count).Error
 
 	return count > 0, err
 }
 
-// hasReceivedActivityCompletionBonus 检查用户今日是否已领取过活动完成奖励
-func hasReceivedActivityCompletionBonus(userID uint, activityID uint) (bool, error) {
-	today := getTodayStart()
+// hasReceivedActivityCompletionBonus 检查用户在指定日期是否已领取过活动完成奖励
+func hasReceivedActivityCompletionBonus(userID uint, activityID uint, dayStart time.Time) (bool, error) {
+	dayEnd := dayStart.Add(24 * time.Hour)
 	var count int64
 
 	err := database.DB.Model(&model.Score{}).
-		Where("user_id = ? AND cause = ? AND created_at >= ? AND deleted_at IS NULL",
-			userID, fmt.Sprintf("ActivityCompletionBonus#%d", activityID), today).
+		Where("user_id = ? AND cause = ? AND created_at >= ? AND created_at < ? AND deleted_at IS NULL",
+			userID, fmt.Sprintf("ActivityCompletionBonus#%d", activityID), dayStart, dayEnd).
 		Count(&count).Error
 
 	return count > 0, err
@@ -411,11 +417,14 @@ func ReviewPunch(c *gin.Context) {
 		UserID:     punch.UserID, // 使用打卡者的ID，而非审核者的ID
 	}))
 
+	// 获取打卡当天的零点时间（基于打卡创建时间，而非审核时间）
+	punchDayStart := getDayStart(punch.CreatedAt)
+
 	// 辅助函数：检查每日积分上限并发放积分
 	awardScore := func(scoreToAward int, cause string) (bool, string) {
 		// 如果活动设置了每日积分上限，且该项目不豁免
 		if activity.DailyPointLimit > 0 && !project.ExemptFromLimit {
-			currentPoints, err := getTodayPointsForActivity(punch.UserID, activityID)
+			currentPoints, err := getDayPointsForActivity(punch.UserID, activityID, punchDayStart)
 			if err != nil {
 				return false, "检查每日积分上限失败"
 			}
@@ -450,15 +459,15 @@ func ReviewPunch(c *gin.Context) {
 		if project.CompletionBonus == 0 {
 			return
 		}
-		// 检查是否完成了项目所有栏目
-		complete, err := checkProjectCompletion(punch.UserID, projectID)
+		// 检查是否完成了项目所有栏目（基于打卡当天）
+		complete, err := checkProjectCompletion(punch.UserID, projectID, punchDayStart)
 		if err != nil || !complete {
 			return
 		}
 		res.ProjectComplete = true
 
-		// 检查今日是否已经领取过奖励
-		received, err := hasReceivedProjectCompletionBonus(punch.UserID, projectID)
+		// 检查打卡当天是否已经领取过奖励
+		received, err := hasReceivedProjectCompletionBonus(punch.UserID, projectID, punchDayStart)
 		if err != nil || received {
 			return
 		}
@@ -484,15 +493,15 @@ func ReviewPunch(c *gin.Context) {
 		if activity.CompletionBonus == 0 {
 			return
 		}
-		// 检查是否完成了活动所有栏目
-		complete, err := checkActivityCompletion(punch.UserID, activityID)
+		// 检查是否完成了活动所有栏目（基于打卡当天）
+		complete, err := checkActivityCompletion(punch.UserID, activityID, punchDayStart)
 		if err != nil || !complete {
 			return
 		}
 		res.ActivityComplete = true
 
-		// 检查今日是否已经领取过奖励
-		received, err := hasReceivedActivityCompletionBonus(punch.UserID, activityID)
+		// 检查打卡当天是否已经领取过奖励
+		received, err := hasReceivedActivityCompletionBonus(punch.UserID, activityID, punchDayStart)
 		if err != nil || received {
 			return
 		}
