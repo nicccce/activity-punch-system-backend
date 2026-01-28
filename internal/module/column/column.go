@@ -439,7 +439,7 @@ func GetColumn(c *gin.Context) {
 		var todayPunchCount int64
 		database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? AND created_at >= ?", id, userID, today).Count(&todayPunchCount)
 
-		responseData["punched_today"] = todayPunchCount > 0
+		responseData["punched_today"] = todayPunchCount == int64(column.DailyPunchLimit)
 		responseData["today_punch_count"] = todayPunchCount
 	}
 
