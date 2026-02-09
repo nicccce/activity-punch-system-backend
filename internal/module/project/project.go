@@ -246,7 +246,7 @@ func UpdateProject(c *gin.Context) {
 	response.Success(c, project)
 }
 
-// DeleteProject 处理删除项目请求
+// DeleteProject 处理删除项目请求（级联软删除关联的 Column）
 func DeleteProject(c *gin.Context) {
 	// 获取认证信息
 	payload, exists := c.Get("payload")
@@ -277,17 +277,34 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	if err := database.DB.Delete(&project).Error; err != nil {
+	// 使用事务进行级联删除
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. 软删除该项目下的所有栏目
+		if err := tx.Where("project_id = ? AND deleted_at IS NULL", project.ID).
+			Delete(&model.Column{}).Error; err != nil {
+			return err
+		}
+		log.Info("级联删除栏目", "project_id", project.ID)
+
+		// 2. 软删除项目本身
+		if err := tx.Delete(&project).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		log.Error("删除项目失败", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 
-	log.Info("项目删除成功", "project_id", project.ID, "owner_id", StudentID)
+	log.Info("项目删除成功（含级联删除）", "project_id", project.ID, "owner_id", StudentID)
 	response.Success(c)
 }
 
-// RestoreProject 处理恢复项目请求
+// RestoreProject 处理恢复项目请求（级联恢复关联的 Column）
 func RestoreProject(c *gin.Context) {
 	// 获取认证信息
 	payload, exists := c.Get("payload")
@@ -317,14 +334,31 @@ func RestoreProject(c *gin.Context) {
 		return
 	}
 
-	project.DeletedAt = gorm.DeletedAt{}
-	if err := database.DB.Unscoped().Save(&project).Error; err != nil {
+	// 使用事务进行级联恢复
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. 恢复项目本身
+		if err := tx.Unscoped().Model(&project).Update("deleted_at", nil).Error; err != nil {
+			return err
+		}
+
+		// 2. 恢复该项目下所有已删除的栏目
+		if err := tx.Unscoped().Model(&model.Column{}).
+			Where("project_id = ? AND deleted_at IS NOT NULL", project.ID).
+			Update("deleted_at", nil).Error; err != nil {
+			return err
+		}
+		log.Info("级联恢复栏目", "project_id", project.ID)
+
+		return nil
+	})
+
+	if err != nil {
 		log.Error("恢复项目失败", "error", err)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 
-	log.Info("项目恢复成功", "project_id", project.ID, "owner_id", StudentID)
+	log.Info("项目恢复成功（含级联恢复）", "project_id", project.ID, "owner_id", StudentID)
 	response.Success(c)
 }
 
@@ -386,6 +420,8 @@ type ColumnInProject struct {
 	StartTime       string `json:"start_time"`        // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string `json:"end_time"`          // 每日打卡结束时间，格式为 "HH:MM"
 	Optional        bool   `json:"optional"`          // 特殊栏目，不计入完成所有栏目的判断
+	MinWordLimit    *uint  `json:"min_word_limit"`    // 最小字数限制，可选，null表示不限制
+	MaxWordLimit    *uint  `json:"max_word_limit"`    // 最大字数限制，可选，null表示不限制
 }
 
 type GetProjectResponse struct {
@@ -440,6 +476,8 @@ func GetProject(c *gin.Context) {
 			StartTime:       col.StartTime,
 			EndTime:         col.EndTime,
 			Optional:        col.Optional,
+			MinWordLimit:    col.MinWordLimit,
+			MaxWordLimit:    col.MaxWordLimit,
 		})
 	}
 

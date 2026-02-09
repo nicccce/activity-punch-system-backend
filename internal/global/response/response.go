@@ -2,6 +2,7 @@ package response
 
 import (
 	"activity-punch-system/config"
+	"activity-punch-system/internal/global/sentry"
 	"fmt"
 	"time"
 
@@ -67,6 +68,9 @@ func Fail(c *gin.Context, err error) {
 
 	// 将错误对象存储到 gin 上下文中，便于后续处理（如日志记录）
 	c.Set(ErrorContextKey, *e)
+
+	// 上报 5xx 错误到 Sentry
+	sentry.CaptureException(c, e)
 
 	// 发送 JSON 错误响应
 	c.JSON(int(e.Code), response)

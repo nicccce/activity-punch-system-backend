@@ -25,6 +25,11 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("code:%d, msg:%s", e.Code, e.Message)
 }
 
+// GetCode 返回错误码，实现 sentry.CodedError 接口
+func (e *Error) GetCode() int32 {
+	return e.Code
+}
+
 func (e *Error) Is(target error) bool {
 	var t *Error
 	ok := errors.As(target, &t)

@@ -43,6 +43,8 @@ type ColumnCreateReq struct {
 	StartTime       string `json:"start_time"`                     // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string `json:"end_time"`                       // 每日打卡结束时间，格式为 "HH:MM"
 	Optional        bool   `json:"optional"`                       // 特殊栏目，不计入完成所有栏目的判断
+	MinWordLimit    *uint  `json:"min_word_limit"`                 // 最小字数限制，可选，null表示不限制
+	MaxWordLimit    *uint  `json:"max_word_limit"`                 // 最大字数限制，可选，null表示不限制
 }
 
 // ColumnUpdateReq 定义更新栏目请求的结构体，使用指针类型支持部分更新
@@ -58,6 +60,8 @@ type ColumnUpdateReq struct {
 	StartTime       *string `json:"start_time"`                              // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         *string `json:"end_time"`                                // 每日打卡结束时间，格式为 "HH:MM"
 	Optional        *bool   `json:"optional"`                                // 特殊栏目，不计入完成所有栏目的判断
+	MinWordLimit    *uint   `json:"min_word_limit"`                          // 最小字数限制，可选，null表示不限制
+	MaxWordLimit    *uint   `json:"max_word_limit"`                          // 最大字数限制，可选，null表示不限制
 }
 
 // ColumnResponse 定义栏目响应结构体（不包含空的Project字段）
@@ -75,6 +79,8 @@ type ColumnResponse struct {
 	StartTime       string `json:"start_time"`
 	EndTime         string `json:"end_time"`
 	Optional        bool   `json:"optional"`
+	MinWordLimit    *uint  `json:"min_word_limit"`
+	MaxWordLimit    *uint  `json:"max_word_limit"`
 	CreatedAt       int64  `json:"created_at"`
 	UpdatedAt       int64  `json:"updated_at"`
 }
@@ -167,6 +173,8 @@ func CreateColumn(c *gin.Context) {
 		StartTime:       req.StartTime,
 		EndTime:         req.EndTime,
 		Optional:        req.Optional,
+		MinWordLimit:    req.MinWordLimit,
+		MaxWordLimit:    req.MaxWordLimit,
 	}
 
 	if err := database.DB.Create(&column).Error; err != nil {
@@ -329,6 +337,12 @@ func UpdateColumn(c *gin.Context) {
 	if req.Optional != nil {
 		column.Optional = *req.Optional
 	}
+	if req.MinWordLimit != nil {
+		column.MinWordLimit = req.MinWordLimit
+	}
+	if req.MaxWordLimit != nil {
+		column.MaxWordLimit = req.MaxWordLimit
+	}
 
 	if err := database.DB.Save(&column).Error; err != nil {
 		log.Error("更新栏目失败", "error", err)
@@ -425,6 +439,8 @@ func GetColumn(c *gin.Context) {
 		"start_time":        column.StartTime,
 		"end_time":          column.EndTime,
 		"optional":          column.Optional,
+		"min_word_limit":    column.MinWordLimit,
+		"max_word_limit":    column.MaxWordLimit,
 		"created_at":        column.CreatedAt.Unix(),
 		"updated_at":        column.UpdatedAt.Unix(),
 		"project":           column.Project,
@@ -476,6 +492,8 @@ func ListColumns(c *gin.Context) {
 			StartTime:       p.StartTime,
 			EndTime:         p.EndTime,
 			Optional:        p.Optional,
+			MinWordLimit:    p.MinWordLimit,
+			MaxWordLimit:    p.MaxWordLimit,
 			CreatedAt:       p.CreatedAt.Unix(),
 			UpdatedAt:       p.UpdatedAt.Unix(),
 		})

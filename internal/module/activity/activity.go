@@ -268,7 +268,7 @@ func UpdateActivity(c *gin.Context) {
 	response.Success(c)
 }
 
-// DeleteActivity 处理删除项目请求
+// DeleteActivity 处理删除活动请求（级联软删除关联的 Project 和 Column）
 func DeleteActivity(c *gin.Context) {
 	// 获取认证信息
 	payload, exists := c.Get("payload")
@@ -283,47 +283,80 @@ func DeleteActivity(c *gin.Context) {
 	}
 	StudentID := userPayload.StudentID
 
-	// 获取项目ID
+	// 获取活动ID
 	id := c.Param("id")
 	if id == "" {
-		log.Error("项目ID不能为空")
-		response.Fail(c, response.ErrInvalidRequest.WithTips("项目ID不能为空"))
+		log.Error("活动ID不能为空")
+		response.Fail(c, response.ErrInvalidRequest.WithTips("活动ID不能为空"))
 		return
 	}
 
-	// 查询项目是否存在
+	// 查询活动是否存在
 	var activity model.Activity
 	if err := database.DB.First(&activity, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Warn("项目不存在", "id", id)
-			response.Fail(c, response.ErrNotFound.WithTips("项目不存在"))
+			log.Warn("活动不存在", "id", id)
+			response.Fail(c, response.ErrNotFound.WithTips("活动不存在"))
 			return
 		}
-		log.Error("查询项目失败", "error", err, "id", id)
+		log.Error("查询活动失败", "error", err, "id", id)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 	if activity.OwnerID != StudentID {
-		log.Warn("无权限删除项目", "id", id, "owner_id", activity.OwnerID, "student_id", StudentID)
-		response.Fail(c, response.ErrForbidden.WithTips("无权限删除该项目"))
+		log.Warn("无权限删除活动", "id", id, "owner_id", activity.OwnerID, "student_id", StudentID)
+		response.Fail(c, response.ErrForbidden.WithTips("无权限删除该活动"))
 		return
 	}
 
-	// 删除项目
-	if err := database.DB.Delete(&activity).Error; err != nil {
-		log.Error("删除项目失败", "error", err, "id", id)
+	// 使用事务进行级联删除
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. 查询该活动下的所有项目ID
+		var projectIDs []uint
+		if err := tx.Model(&model.Project{}).
+			Where("activity_id = ? AND deleted_at IS NULL", activity.ID).
+			Pluck("id", &projectIDs).Error; err != nil {
+			return err
+		}
+
+		// 2. 软删除这些项目下的所有栏目
+		if len(projectIDs) > 0 {
+			if err := tx.Where("project_id IN ? AND deleted_at IS NULL", projectIDs).
+				Delete(&model.Column{}).Error; err != nil {
+				return err
+			}
+			log.Info("级联删除栏目", "activity_id", activity.ID, "project_ids", projectIDs)
+		}
+
+		// 3. 软删除该活动下的所有项目
+		if err := tx.Where("activity_id = ? AND deleted_at IS NULL", activity.ID).
+			Delete(&model.Project{}).Error; err != nil {
+			return err
+		}
+		log.Info("级联删除项目", "activity_id", activity.ID, "project_count", len(projectIDs))
+
+		// 4. 软删除活动本身
+		if err := tx.Delete(&activity).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error("删除活动失败", "error", err, "id", id)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 
-	log.Info("项目删除成功",
+	log.Info("活动删除成功（含级联删除）",
 		"id", activity.ID,
 	)
 
 	response.Success(c)
 }
 
-// RestoreActivity 处理还原删除的项目请求
+// RestoreActivity 处理还原删除的活动请求（级联恢复关联的 Project 和 Column）
 func RestoreActivity(c *gin.Context) {
 	// 获取认证信息
 	payload, exists := c.Get("payload")
@@ -338,41 +371,75 @@ func RestoreActivity(c *gin.Context) {
 	}
 	StudentID := userPayload.StudentID
 
-	// 获取项目ID
+	// 获取活动ID
 	id := c.Param("id")
 	if id == "" {
-		log.Error("项目ID不能为空")
-		response.Fail(c, response.ErrInvalidRequest.WithTips("项目ID不能为空"))
+		log.Error("活动ID不能为空")
+		response.Fail(c, response.ErrInvalidRequest.WithTips("活动ID不能为空"))
 		return
 	}
 
-	// 查询项目是否存在
+	// 查询活动是否存在（包括已删除的）
 	var activity model.Activity
 	if err := database.DB.Unscoped().First(&activity, "id = ?", id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Warn("项目不存在", "id", id)
-			response.Fail(c, response.ErrNotFound.WithTips("项目不存在"))
+			log.Warn("活动不存在", "id", id)
+			response.Fail(c, response.ErrNotFound.WithTips("活动不存在"))
 			return
 		}
-		log.Error("查询项目失败", "error", err, "id", id)
+		log.Error("查询活动失败", "error", err, "id", id)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 	if activity.OwnerID != StudentID {
-		log.Warn("无权限还原项目", "id", id, "owner_id", activity.OwnerID, "student_id", StudentID)
-		response.Fail(c, response.ErrForbidden.WithTips("无权限还原该项目"))
+		log.Warn("无权限还原活动", "id", id, "owner_id", activity.OwnerID, "student_id", StudentID)
+		response.Fail(c, response.ErrForbidden.WithTips("无权限还原该活动"))
 		return
 	}
 
-	// 还原项目（使用 Unscoped 和 Model 的 DeletedAt 字段来恢复）
-	activity.DeletedAt = gorm.DeletedAt{}
-	if err := database.DB.Unscoped().Save(&activity).Error; err != nil {
-		log.Error("还原项目失败", "error", err, "id", id)
+	// 使用事务进行级联恢复
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 1. 恢复活动本身
+		if err := tx.Unscoped().Model(&activity).Update("deleted_at", nil).Error; err != nil {
+			return err
+		}
+
+		// 2. 查询该活动下所有已删除的项目ID
+		var projectIDs []uint
+		if err := tx.Unscoped().Model(&model.Project{}).
+			Where("activity_id = ? AND deleted_at IS NOT NULL", activity.ID).
+			Pluck("id", &projectIDs).Error; err != nil {
+			return err
+		}
+
+		// 3. 恢复这些项目下所有已删除的栏目
+		if len(projectIDs) > 0 {
+			if err := tx.Unscoped().Model(&model.Column{}).
+				Where("project_id IN ? AND deleted_at IS NOT NULL", projectIDs).
+				Update("deleted_at", nil).Error; err != nil {
+				return err
+			}
+			log.Info("级联恢复栏目", "activity_id", activity.ID, "project_ids", projectIDs)
+		}
+
+		// 4. 恢复该活动下所有已删除的项目
+		if err := tx.Unscoped().Model(&model.Project{}).
+			Where("activity_id = ? AND deleted_at IS NOT NULL", activity.ID).
+			Update("deleted_at", nil).Error; err != nil {
+			return err
+		}
+		log.Info("级联恢复项目", "activity_id", activity.ID, "project_count", len(projectIDs))
+
+		return nil
+	})
+
+	if err != nil {
+		log.Error("还原活动失败", "error", err, "id", id)
 		response.Fail(c, response.ErrDatabase.WithOrigin(err))
 		return
 	}
 
-	log.Info("项目还原成功",
+	log.Info("活动还原成功（含级联恢复）",
 		"id", activity.ID,
 		"name", activity.Name,
 	)

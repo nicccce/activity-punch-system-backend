@@ -39,7 +39,7 @@ func getDayStart(t time.Time) time.Time {
 // PunchInsertRequest 定义插入打卡记录的请求体结构
 type PunchInsertRequest struct {
 	ColumnID int      `json:"column_id" binding:"required"`
-	Content  string   `json:"content" binding:"required,max=500"`
+	Content  string   `json:"content" binding:"required"` // 字数限制由栏目的 min_word_limit 和 max_word_limit 控制
 	Images   []string `json:"images" binding:"omitempty,max=9"`
 }
 
@@ -172,6 +172,17 @@ func InsertPunch(c *gin.Context) {
 				return
 			}
 		}
+	}
+
+	// 验证打卡内容字数限制
+	contentLength := uint(len([]rune(req.Content))) // 使用 rune 计算中文字符数
+	if column.MinWordLimit != nil && contentLength < *column.MinWordLimit {
+		response.Fail(c, response.ErrInvalidRequest.WithTips(fmt.Sprintf("打卡内容字数不能少于 %d 字", *column.MinWordLimit)))
+		return
+	}
+	if column.MaxWordLimit != nil && contentLength > *column.MaxWordLimit {
+		response.Fail(c, response.ErrInvalidRequest.WithTips(fmt.Sprintf("打卡内容字数不能超过 %d 字", *column.MaxWordLimit)))
+		return
 	}
 
 	punch := &model.Punch{

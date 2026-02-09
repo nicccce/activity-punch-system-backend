@@ -7,10 +7,12 @@ import (
 	"activity-punch-system/internal/global/logger"
 	"activity-punch-system/internal/global/middleware"
 	"activity-punch-system/internal/global/redis"
+	"activity-punch-system/internal/global/sentry"
 	"activity-punch-system/internal/module"
 	"activity-punch-system/tools"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,6 +21,16 @@ var log *slog.Logger
 
 func Init() {
 	config.Init()
+
+	// 初始化 Sentry（必须在 logger 之前初始化，因为 logger 会使用 Sentry handler）
+	if err := sentry.Init(); err != nil {
+		// 使用标准库日志，因为 logger 还未初始化
+		fmt.Printf("Sentry initialization failed: %v\n", err)
+	} else if config.Get().Sentry.Dsn != "" {
+		fmt.Println("Init Sentry: enabled")
+	}
+
+	// 初始化 logger（在 Sentry 之后，以便 logger 可以使用 Sentry handler）
 	log = logger.New("Server")
 	log.Info(fmt.Sprintf("Init Config: %s", config.Get().Mode))
 
@@ -38,8 +50,14 @@ func Init() {
 }
 
 func Run() {
+	// 确保程序退出前刷新 Sentry 缓冲区
+	defer sentry.Flush(2 * time.Second)
+
 	gin.SetMode(string(config.Get().Mode))
 	r := gin.New()
+
+	// Sentry 中间件需要在其他中间件之前添加，以便捕获所有错误
+	r.Use(sentry.Middleware())
 
 	switch config.Get().Mode {
 	case config.ModeRelease:

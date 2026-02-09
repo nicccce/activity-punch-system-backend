@@ -73,6 +73,12 @@ github.com/fsnotify/fsnotify v1.8.0 h1:dAwr6QBTBZIkG8roQaJjGof0pp0EeF+tNV7YBP3F/
 github.com/fsnotify/fsnotify v1.8.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/gabriel-vasile/mimetype v1.4.3 h1:in2uUcidCuFcDKtdcBxlR0rJ1+fsokWf+uqxgUFjbI0=
 github.com/gabriel-vasile/mimetype v1.4.3/go.mod h1:d8uq/6HKRL6CGdk+aubisF/M5GcPfT7nKyLpA0lbSSk=
+github.com/getsentry/sentry-go v0.42.0 h1:eeFMACuZTbUQf90RE8dE4tXeSe4CZyfvR1MBL7RLEt8=
+github.com/getsentry/sentry-go v0.42.0/go.mod h1:eRXCoh3uvmjQLY6qu63BjUZnaBu5L5WhMV1RwYO8W5s=
+github.com/getsentry/sentry-go/gin v0.42.0 h1:Mu1fqTbHcmkjQUPPb2O3nmVFpslo70Y1uLlVzEVm1VI=
+github.com/getsentry/sentry-go/gin v0.42.0/go.mod h1:+iphsbNh87sFyw5fFys96YXsaQ33ruhIv5XBogwZvEM=
+github.com/getsentry/sentry-go/slog v0.42.0 h1:SX5IoyHt8hLLA7fai7Lu/hZ5EzSESoFEhML3KdsJDk4=
+github.com/getsentry/sentry-go/slog v0.42.0/go.mod h1:wViJ4JAiz6BSHFPo1zpimxjFeMAO3Hcx9tcAVgNOWhE=
 github.com/gin-contrib/sse v0.1.0 h1:Y/yl/+YNO8GZSjAhjMsSuLt29uWRFHdHYUb5lYOV9qE=
 github.com/gin-contrib/sse v0.1.0/go.mod h1:RHrZQHXnP2xjPF+u1gW/2HnVO7nvIa9PG3Gm+fLHvGI=
 github.com/gin-gonic/gin v1.10.1 h1:T0ujvqyCSqRopADpgPgiTT63DUQVSfojyME59Ei63pQ=

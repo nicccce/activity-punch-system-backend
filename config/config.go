@@ -20,6 +20,13 @@ type Config struct {
 	Log      Log      `mapstructure:"Log"`
 	Sdulogin Sdulogin `yaml:"Sdulogin" envconfig:"SDULOGIN"`
 	S3       S3
+	Sentry   Sentry `mapstructure:"Sentry"`
+}
+
+type Sentry struct {
+	Dsn         string  `mapstructure:"dsn" envconfig:"SENTRY_DSN"`          // Sentry DSN
+	Environment string  `mapstructure:"environment" envconfig:"SENTRY_ENV"`  // 环境标识，如 production, staging
+	SampleRate  float64 `mapstructure:"sample_rate" envconfig:"SENTRY_RATE"` // 采样率，0.0-1.0
 }
 
 type Storage struct {

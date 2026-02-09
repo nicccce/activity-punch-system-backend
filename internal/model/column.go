@@ -15,6 +15,8 @@ type Column struct {
 	StartTime       string  `gorm:"type:varchar(10);not null" json:"start_time" excel:"每日打卡开始时间"` // 每日打卡开始时间，格式为 "HH:MM"
 	EndTime         string  `gorm:"type:varchar(10);not null" json:"end_time" excel:"每日打卡结束时间"`   // 每日打卡结束时间，格式为 "HH:MM"
 	Optional        bool    `gorm:"default:false" json:"optional" excel:"特殊栏目"`                   // 特殊栏目，不计入完成所有栏目的判断
+	MinWordLimit    *uint   `gorm:"default:null" json:"min_word_limit" excel:"最小字数限制"`            // 最小字数限制，可选，null表示不限制
+	MaxWordLimit    *uint   `gorm:"default:null" json:"max_word_limit" excel:"最大字数限制"`            // 最大字数限制，可选，null表示不限制
 	// 关联到用户
 	User User `gorm:"foreignKey:OwnerID;references:StudentID" json:"user" excel:"-"` // 关联到用户模型，使用学号作为外键
 }
