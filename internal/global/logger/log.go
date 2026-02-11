@@ -116,6 +116,23 @@ func New(module string) *slog.Logger {
 	return Get().With("module", module)
 }
 
+// WithContext 从 gin.Context 中提取 client_ip 等请求信息，返回带有这些字段的 Logger
+// 用于在业务日志中携带用户 IP，使其在 Sentry 日志上报中可见
+func WithContext(base *slog.Logger, c interface{ ClientIP() string; GetHeader(string) string }) *slog.Logger {
+	ip := c.ClientIP()
+	l := base.With("client_ip", ip)
+
+	// 优先使用代理转发的真实 IP
+	if forwardedFor := c.GetHeader("X-Forwarded-For"); forwardedFor != "" {
+		l = l.With("x_forwarded_for", forwardedFor)
+	}
+	if realIP := c.GetHeader("X-Real-IP"); realIP != "" {
+		l = l.With("x_real_ip", realIP)
+	}
+
+	return l
+}
+
 // getLogLevel 将字符串级别转换为 slog.Level
 func getLogLevel(level string) slog.Level {
 	switch strings.ToLower(level) {

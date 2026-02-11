@@ -27,6 +27,17 @@ type Sentry struct {
 	Dsn         string  `mapstructure:"dsn" envconfig:"SENTRY_DSN"`          // Sentry DSN
 	Environment string  `mapstructure:"environment" envconfig:"SENTRY_ENV"`  // 环境标识，如 production, staging
 	SampleRate  float64 `mapstructure:"sample_rate" envconfig:"SENTRY_RATE"` // 采样率，0.0-1.0
+	Tracing     Tracing `mapstructure:"tracing"`                             // 性能追踪配置
+}
+
+// Tracing Sentry 性能追踪配置
+type Tracing struct {
+	// 数据库慢查询阈值（毫秒），仅记录超过此阈值的查询，0 表示记录所有查询
+	DBSlowThresholdMs int64 `mapstructure:"db_slow_threshold_ms" envconfig:"SENTRY_DB_SLOW_MS"`
+	// Redis 慢操作阈值（毫秒），仅记录超过此阈值的操作，0 表示记录所有操作
+	RedisSlowThresholdMs int64 `mapstructure:"redis_slow_threshold_ms" envconfig:"SENTRY_REDIS_SLOW_MS"`
+	// 是否记录所有外部 HTTP 调用（通常较慢且数量少，建议开启）
+	TraceHTTPCalls bool `mapstructure:"trace_http_calls" envconfig:"SENTRY_TRACE_HTTP"`
 }
 
 type Storage struct {

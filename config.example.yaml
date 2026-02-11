@@ -104,7 +104,7 @@ S3:
 Sentry:
   # Sentry DSN，用于连接 Sentry 服务
   # 留空则禁用 Sentry
-  dsn: "https://5c9aba34a6c0bf700a089c34621cde42@sentry.orbithy.com/4"
+  dsn: "https://your-sentry-dsn@sentry.example.com/1"
 
   # 环境标识，用于区分不同环境的错误
   # 可选值: "production", "staging", "development"
@@ -115,3 +115,12 @@ Sentry:
   # 1.0 表示 100% 采样，0.5 表示 50% 采样
   # 留空或 0 则默认为 1.0
   sample_rate: 1.0
+
+  # 性能追踪配置
+  tracing:
+    # 数据库慢查询阈值（毫秒），仅记录超过此阈值的查询，0 表示记录所有查询
+    db_slow_threshold_ms: 100
+    # Redis 慢操作阈值（毫秒），仅记录超过此阈值的操作，0 表示记录所有操作
+    redis_slow_threshold_ms: 50
+    # 是否记录所有外部 HTTP 调用（通常较慢且数量少，建议开启）
+    trace_http_calls: true

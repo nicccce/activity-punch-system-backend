@@ -2,6 +2,7 @@ package redis
 
 import (
 	"activity-punch-system/config"
+	"activity-punch-system/internal/global/sentry/tracing"
 	"activity-punch-system/tools"
 	"context"
 	"fmt"
@@ -50,6 +51,12 @@ func Init() {
 
 	// 初始化 Redis 客户端
 	redisClient := redis.NewClient(redisOptions)
+
+	// 注册 Sentry 性能追踪 Hook（如果 Sentry 已启用）
+	if tracing.IsEnabled() {
+		redisClient.AddHook(tracing.NewRedisSentryHook())
+	}
+
 	ctx := context.Background()
 
 	// 测试连接

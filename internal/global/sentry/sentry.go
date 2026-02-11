@@ -2,7 +2,10 @@ package sentry
 
 import (
 	"activity-punch-system/config"
+	"bytes"
 	"fmt"
+	"io"
+	"strings"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -97,6 +100,19 @@ func CaptureException(c *gin.Context, err error) {
 			scope.SetTag("path", c.Request.URL.Path)
 			scope.SetTag("method", c.Request.Method)
 
+			// 添加查询参数
+			if queryParams := c.Request.URL.RawQuery; queryParams != "" {
+				scope.SetExtra("query_params", queryParams)
+			}
+
+			// 添加请求体（如果有，且大小合理）
+			if body := getRequestBody(c); body != "" {
+				scope.SetExtra("request_body", body)
+			}
+
+			// 添加关键请求头
+			addRequestHeaders(scope, c)
+
 			// 添加用户信息（如果有）
 			if payload, exists := c.Get("payload"); exists {
 				scope.SetUser(sentry.User{
@@ -106,8 +122,81 @@ func CaptureException(c *gin.Context, err error) {
 				})
 			}
 
+			// 添加错误码信息（如果是 CodedError）
+			if codedErr, ok := err.(CodedError); ok {
+				scope.SetTag("error_code", fmt.Sprintf("%d", codedErr.GetCode()))
+			}
+
 			hub.CaptureException(err)
 		})
+	}
+}
+
+// getRequestBody 获取请求体内容（限制大小，避免内存问题）
+func getRequestBody(c *gin.Context) string {
+	// 最大读取 10KB
+	const maxBodySize = 10 * 1024
+
+	if c.Request.Body == nil {
+		return ""
+	}
+
+	// 读取 body 并恢复
+	bodyBytes, err := io.ReadAll(io.LimitReader(c.Request.Body, maxBodySize))
+	if err != nil {
+		return ""
+	}
+	// 恢复 body 以供后续使用
+	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	body := string(bodyBytes)
+	if body == "" {
+		return ""
+	}
+
+	// 脱敏处理：移除可能的敏感字段
+	body = sanitizeBody(body)
+
+	return body
+}
+
+// sanitizeBody 对请求体进行脱敏处理
+func sanitizeBody(body string) string {
+	// 简单的脱敏：替换常见的敏感字段值
+	sensitiveFields := []string{"password", "token", "secret", "authorization", "api_key", "apikey"}
+	result := body
+	for _, field := range sensitiveFields {
+		// 替换 JSON 格式的敏感字段
+		result = strings.ReplaceAll(result, fmt.Sprintf(`"%s":`, field), fmt.Sprintf(`"%s":"[REDACTED]",`, field))
+		result = strings.ReplaceAll(result, fmt.Sprintf(`"%s" :`, field), fmt.Sprintf(`"%s":"[REDACTED]",`, field))
+	}
+	return result
+}
+
+// addRequestHeaders 添加关键请求头到 Sentry scope
+func addRequestHeaders(scope *sentry.Scope, c *gin.Context) {
+	headers := make(map[string]string)
+
+	// 添加有用的请求头（不包含敏感信息）
+	safeHeaders := []string{
+		"Content-Type",
+		"Accept",
+		"User-Agent",
+		"X-Request-ID",
+		"X-Forwarded-For",
+		"X-Real-IP",
+		"Referer",
+		"Origin",
+	}
+
+	for _, header := range safeHeaders {
+		if value := c.GetHeader(header); value != "" {
+			headers[header] = value
+		}
+	}
+
+	if len(headers) > 0 {
+		scope.SetExtra("request_headers", headers)
 	}
 }
 
@@ -120,6 +209,44 @@ func CaptureMessage(c *gin.Context, message string) {
 
 	if hub := sentrygin.GetHubFromContext(c); hub != nil {
 		hub.CaptureMessage(message)
+	}
+}
+
+// AddBreadcrumb 添加面包屑到当前 Sentry scope
+// 用于记录关键操作步骤，帮助复现问题
+// 用法：sentry.AddBreadcrumb(c, "database", "查询用户信息", map[string]interface{}{"user_id": 123})
+func AddBreadcrumb(c *gin.Context, category, message string, data map[string]interface{}) {
+	cfg := config.Get()
+	if cfg.Sentry.Dsn == "" {
+		return
+	}
+
+	if hub := sentrygin.GetHubFromContext(c); hub != nil {
+		hub.AddBreadcrumb(&sentry.Breadcrumb{
+			Category:  category,
+			Message:   message,
+			Level:     sentry.LevelInfo,
+			Data:      data,
+			Timestamp: time.Now(),
+		}, nil)
+	}
+}
+
+// AddBreadcrumbWithLevel 添加带级别的面包屑
+func AddBreadcrumbWithLevel(c *gin.Context, category, message string, level sentry.Level, data map[string]interface{}) {
+	cfg := config.Get()
+	if cfg.Sentry.Dsn == "" {
+		return
+	}
+
+	if hub := sentrygin.GetHubFromContext(c); hub != nil {
+		hub.AddBreadcrumb(&sentry.Breadcrumb{
+			Category:  category,
+			Message:   message,
+			Level:     level,
+			Data:      data,
+			Timestamp: time.Now(),
+		}, nil)
 	}
 }
 

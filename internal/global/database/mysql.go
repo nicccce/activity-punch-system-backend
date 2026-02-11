@@ -2,6 +2,7 @@ package database
 
 import (
 	"activity-punch-system/config"
+	"activity-punch-system/internal/global/sentry/tracing"
 	"activity-punch-system/internal/model"
 	"activity-punch-system/tools"
 	"fmt"
@@ -51,6 +52,14 @@ func Init() {
 	db, err := gorm.Open(mysql.Open(dsn), gormConfig)
 	tools.PanicOnErr(err)
 	DB = db
+
+	// 注册 Sentry 性能追踪插件（如果 Sentry 已启用）
+	if tracing.IsEnabled() {
+		if err := DB.Use(tracing.NewGormTracingPlugin()); err != nil {
+			// 追踪插件注册失败不应影响正常功能，仅打印警告
+			fmt.Printf("Warning: Failed to register GORM Sentry tracing plugin: %v\n", err)
+		}
+	}
 
 	// 使用模型列表进行自动迁移
 	tools.PanicOnErr(DB.AutoMigrate(autoMigrateModels...))
