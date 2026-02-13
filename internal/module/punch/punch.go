@@ -1265,7 +1265,13 @@ func GetReviewedPunchList(c *gin.Context) {
 			query = query.Where("status = ?", status)
 		}
 	}
-
+	dateStr := c.Query("date")
+	if dateStr != "" {
+		date, err := time.ParseInLocation("2006-01-02", dateStr, beijingLocation)
+		if err == nil {
+			query = query.Where("created_at >= ? AND created_at < ?", date, date.AddDate(0, 0, 1))
+		}
+	}
 	// 查询打卡记录
 	var punches []model.Punch
 	if err := query.Order("created_at desc").Find(&punches).Error; err != nil {
