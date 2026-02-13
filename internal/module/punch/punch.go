@@ -707,10 +707,20 @@ func GetPunchesByColumn(c *gin.Context) {
 		})
 	}
 
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	now := time.Now().In(loc)
 	// 查询该栏目下不同 user_id 数量
 	var userCount int64
-	database.DB.Model(&model.Punch{}).Where("column_id = ? ", columnIDStr).Distinct("user_id").Count(&userCount)
+	err := database.DB.Model(&model.Punch{}).
+		Where("column_id = ?", columnIDStr).
+		Where("created_at >= ? AND created_at <= ?", today, now).
+		Distinct("user_id").
+		Count(&userCount).Error
 
+	if err != nil {
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
+	}
 	// 查询当前用户打卡数量
 	var myCount int64
 	database.DB.Model(&model.Punch{}).Where("column_id = ? AND user_id = ? ", columnIDStr, userPayload.ID).Count(&myCount)
@@ -831,6 +841,13 @@ func UpdatePunch(c *gin.Context) {
 		return
 	}
 
+	// 只允许在打卡创建当天修改，跨天则拒绝
+	now := time.Now().In(beijingLocation)
+	if getDayStart(now) != getDayStart(punch.CreatedAt) {
+		response.Fail(c, response.ErrInvalidRequest.WithTips("只能在打卡当天修改，已超过可修改时间"))
+		return
+	}
+
 	var column model.Column
 	if err := database.DB.First(&column, "id = ?", req.ColumnID).Error; err != nil {
 		response.Fail(c, response.ErrNotFound.WithTips("栏目不存在"))
@@ -838,7 +855,6 @@ func UpdatePunch(c *gin.Context) {
 	}
 
 	// 修改打卡视同正常打卡，检查当前时间是否在栏目日期范围内
-	now := time.Now().In(beijingLocation)
 	startDateStr := strconv.FormatInt(column.StartDate, 10)
 	endDateStr := strconv.FormatInt(column.EndDate, 10)
 	startDate, _ := time.ParseInLocation("20060102", startDateStr, beijingLocation)

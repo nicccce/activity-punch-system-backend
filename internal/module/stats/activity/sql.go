@@ -126,7 +126,7 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 	var todayPuncherCount uint
 	if err := database.DB.Table("punch").
 		Select("COUNT(DISTINCT user_id) AS tpuc").
-		Where("column_id IN (?) AND created_at >= ?", columnIDs, askTime-askTime%86400). //就不再created_at<=asktime了
+		Where("column_id IN (?) AND created_at >= ?", columnIDs, askTime-(askTime+8*3600)%86400). // UTC+8 当天零点
 		Scan(&todayPuncherCount).Error; err != nil {
 		Log.Error("数据库 查询punch获得当天已经打卡此活动人数失败", "error", err.Error())
 		return err

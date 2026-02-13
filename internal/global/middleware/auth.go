@@ -3,8 +3,11 @@ package middleware
 import (
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
+	"fmt"
 	"strings"
 
+	sentrylib "github.com/getsentry/sentry-go"
+	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -41,6 +44,19 @@ func Auth(minRoleID int) gin.HandlerFunc {
 			return
 		} else {
 			c.Set("payload", payload)
+
+			// 将用户信息注入 Sentry Scope，后续所有上报自动携带 user_id
+			if hub := sentrygin.GetHubFromContext(c); hub != nil {
+				hub.ConfigureScope(func(scope *sentrylib.Scope) {
+					scope.SetUser(sentrylib.User{
+						ID:        fmt.Sprintf("%d", payload.ID),
+						Username:  payload.StudentID,
+						IPAddress: c.ClientIP(),
+					})
+					scope.SetTag("user_id", fmt.Sprintf("%d", payload.ID))
+					scope.SetTag("student_id", payload.StudentID)
+				})
+			}
 		}
 		c.Next()
 	}

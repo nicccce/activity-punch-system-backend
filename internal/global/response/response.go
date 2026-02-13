@@ -69,6 +69,9 @@ func Fail(c *gin.Context, err error) {
 	// 将错误对象存储到 gin 上下文中，便于后续处理（如日志记录）
 	c.Set(ErrorContextKey, *e)
 
+	// 将响应体存储到 gin 上下文中，供 Sentry 上报使用
+	c.Set(ResponseContextKey, response)
+
 	// 上报 5xx 错误到 Sentry
 	sentry.CaptureException(c, e)
 

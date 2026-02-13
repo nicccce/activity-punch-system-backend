@@ -47,6 +47,7 @@ type Storage struct {
 type S3 struct {
 	Endpoint        string `mapstructure:"endpoint"`
 	BaseURL         string `mapstructure:"base_url"`
+	BackupHost      string `mapstructure:"backup_host"`
 	Bucket          string `mapstructure:"bucket"`
 	Region          string `mapstructure:"region"`
 	AccessKey       string `mapstructure:"access_key"`

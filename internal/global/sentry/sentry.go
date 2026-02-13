@@ -127,6 +127,11 @@ func CaptureException(c *gin.Context, err error) {
 				scope.SetTag("error_code", fmt.Sprintf("%d", codedErr.GetCode()))
 			}
 
+			// 添加响应体信息（如果有）
+			if responseBody, exists := c.Get("response_body"); exists {
+				scope.SetExtra("response_body", responseBody)
+			}
+
 			hub.CaptureException(err)
 		})
 	}

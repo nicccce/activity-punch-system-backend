@@ -1,11 +1,14 @@
 package pictureBed
 
 import (
+	sysconfig "activity-punch-system/config"
 	"context"
 	"fmt"
 	"path"
 	"strings"
 	"time"
+
+	"net/url"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -20,12 +23,24 @@ type PresignedUploadRequest struct {
 
 // PresignedUploadResponse 预签名上传响应
 type PresignedUploadResponse struct {
-	UploadURL string            `json:"upload_url"` // 预签名上传 URL
-	FileKey   string            `json:"file_key"`   // 对象存储中的文件 key
-	FileURL   string            `json:"file_url"`   // 上传成功后的访问 URL
-	ExpiresAt time.Time         `json:"expires_at"` // 过期时间
-	Method    string            `json:"method"`     // HTTP 方法（通常是 PUT）
-	Headers   map[string]string `json:"headers"`    // 需要在上传时携带的 Headers
+	UploadURL       string            `json:"upload_url"` // 预签名上传 URL
+	BackupUploadURL string            `json:"backup_upload_url,omitempty"`
+	FileKey         string            `json:"file_key"` // 对象存储中的文件 key
+	FileURL         string            `json:"file_url"` // 上传成功后的访问 URL
+	BackupFileURL   string            `json:"backup_file_url,omitempty"`
+	ExpiresAt       time.Time         `json:"expires_at"` // 过期时间
+	Method          string            `json:"method"`     // HTTP 方法（通常是 PUT）
+	Headers         map[string]string `json:"headers"`    // 需要在上传时携带的 Headers
+}
+
+func replaceHost(raw string, newHost string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	u.Scheme = "https"
+	u.Host = newHost
+	return u.String(), nil
 }
 
 // GeneratePresignedUploadURL 生成预签名上传 URL
@@ -94,13 +109,26 @@ func (pb *PictureBed) GeneratePresignedUploadURL(ctx context.Context, req Presig
 		fileURL = base + "/" + key
 	}
 
+	backupHost := sysconfig.Get().S3.BackupHost
+	var backupURL string
+	if backupHost != "" {
+		backupURL, err = replaceHost(presignedReq.URL, backupHost)
+	}
+
+	var backupFileURL string
+	if backupHost != "" {
+		backupFileURL, err = replaceHost(fileURL, backupHost)
+	}
+
 	// 构建响应
 	response := &PresignedUploadResponse{
-		UploadURL: presignedReq.URL,
-		FileKey:   key,
-		FileURL:   fileURL,
-		ExpiresAt: time.Now().Add(time.Duration(req.ExpiresIn) * time.Second),
-		Method:    presignedReq.Method,
+		UploadURL:       presignedReq.URL,
+		BackupUploadURL: backupURL,
+		FileKey:         key,
+		FileURL:         fileURL,
+		BackupFileURL:   backupFileURL,
+		ExpiresAt:       time.Now().Add(time.Duration(req.ExpiresIn) * time.Second),
+		Method:          presignedReq.Method,
 		Headers: map[string]string{
 			"Content-Type": contentType,
 		},

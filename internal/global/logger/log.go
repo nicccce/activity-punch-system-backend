@@ -94,8 +94,8 @@ func Get() *slog.Logger {
 			sentryHandler := sentryslog.Option{
 				// Error 级别作为 Sentry Event 上报
 				EventLevel: []slog.Level{slog.LevelError},
-				// Warn 级别作为 Sentry Log 上报
-				LogLevel:  []slog.Level{slog.LevelWarn, slog.LevelError},
+				// Info/Warn/Error 级别作为 Sentry Log 上报（Info 用于请求响应日志）
+				LogLevel:  []slog.Level{slog.LevelInfo, slog.LevelWarn, slog.LevelError},
 				AddSource: cfg.Mode == config.ModeRelease,
 			}.NewSentryHandler(context.Background())
 
@@ -118,7 +118,10 @@ func New(module string) *slog.Logger {
 
 // WithContext 从 gin.Context 中提取 client_ip 等请求信息，返回带有这些字段的 Logger
 // 用于在业务日志中携带用户 IP，使其在 Sentry 日志上报中可见
-func WithContext(base *slog.Logger, c interface{ ClientIP() string; GetHeader(string) string }) *slog.Logger {
+func WithContext(base *slog.Logger, c interface {
+	ClientIP() string
+	GetHeader(string) string
+}) *slog.Logger {
 	ip := c.ClientIP()
 	l := base.With("client_ip", ip)
 

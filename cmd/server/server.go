@@ -58,6 +58,8 @@ func Run() {
 
 	// Sentry 中间件需要在其他中间件之前添加，以便捕获所有错误
 	r.Use(sentry.Middleware())
+	// 将 client IP 注入 Sentry Scope，所有后续日志/事件上报自动携带 IP
+	r.Use(middleware.SentryEnrichIP())
 
 	switch config.Get().Mode {
 	case config.ModeRelease:

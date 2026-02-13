@@ -10,6 +10,9 @@ import (
 // ErrorContextKey 是用于在 gin.Context 中存储错误对象的键
 const ErrorContextKey = "error"
 
+// ResponseContextKey 是用于在 gin.Context 中存储响应体的键，供 Sentry 上报使用
+const ResponseContextKey = "response_body"
+
 // Error 自定义错误类型，支持错误码、消息、原始错误链和堆栈跟踪
 type Error struct {
 	Code    int32  `json:"code"`

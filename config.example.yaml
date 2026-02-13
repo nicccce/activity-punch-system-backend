@@ -91,6 +91,8 @@ S3:
   endpoint: "https://cn-nb1.rains3.com"
   # 访问地址
   base_url: "https://punch.cn-nb1.rains3.com"
+  # 备用上传域名（用于预签名备用 URL）
+  backup_host: "upload-backup.yourdomain.com"
   # 存储桶
   bucket: "punch"
   region: "us-east-1"
