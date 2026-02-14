@@ -240,12 +240,12 @@ type reviewRes struct {
 }
 
 // getDayPointsForActivity 获取用户在指定日期在活动中已获得的积分（排除不计入上限的项目和特殊栏目）
-func getDayPointsForActivity(userID uint, activityID uint, dayStart time.Time) (uint, error) {
+func getDayPointsForActivity(db *gorm.DB, userID uint, activityID uint, dayStart time.Time) (uint, error) {
 	dayEnd := dayStart.Add(24 * time.Hour)
 	var totalPoints uint
 
 	// 查询指定日期获得的积分，排除 exempt_from_limit = true 的项目和 optional = true 的特殊栏目
-	err := database.DB.Table("score").
+	err := db.Table("score").
 		Select("COALESCE(SUM(score.count), 0)").
 		Joins("JOIN `column` ON score.column_id = `column`.id").
 		Joins("JOIN project ON `column`.project_id = project.id").
@@ -257,12 +257,12 @@ func getDayPointsForActivity(userID uint, activityID uint, dayStart time.Time) (
 }
 
 // checkProjectCompletion 检查用户在指定日期是否完成了项目下所有必需栏目的打卡（排除特殊栏目）
-func checkProjectCompletion(userID uint, projectID uint, dayStart time.Time) (bool, error) {
+func checkProjectCompletion(db *gorm.DB, userID uint, projectID uint, dayStart time.Time) (bool, error) {
 	dayEnd := dayStart.Add(24 * time.Hour)
 
 	// 获取项目下所有必需栏目数量（排除 optional = true 的特殊栏目）
 	var totalColumns int64
-	if err := database.DB.Model(&model.Column{}).Where("project_id = ? AND deleted_at IS NULL AND optional = ?", projectID, false).Count(&totalColumns).Error; err != nil {
+	if err := db.Model(&model.Column{}).Where("project_id = ? AND deleted_at IS NULL AND optional = ?", projectID, false).Count(&totalColumns).Error; err != nil {
 		return false, err
 	}
 
@@ -272,7 +272,7 @@ func checkProjectCompletion(userID uint, projectID uint, dayStart time.Time) (bo
 
 	// 获取用户在指定日期已打卡且审核通过的必需栏目数量（去重，排除特殊栏目）
 	var punchedColumns int64
-	if err := database.DB.Table("punch").
+	if err := db.Table("punch").
 		Select("COUNT(DISTINCT column_id)").
 		Joins("JOIN `column` ON punch.column_id = `column`.id").
 		Where("punch.user_id = ? AND `column`.project_id = ? AND punch.created_at >= ? AND punch.created_at < ? AND punch.status = 1 AND punch.deleted_at IS NULL AND `column`.optional = ?",
@@ -285,12 +285,12 @@ func checkProjectCompletion(userID uint, projectID uint, dayStart time.Time) (bo
 }
 
 // checkActivityCompletion 检查用户在指定日期是否完成了活动下所有必需栏目的打卡（排除特殊栏目）
-func checkActivityCompletion(userID uint, activityID uint, dayStart time.Time) (bool, error) {
+func checkActivityCompletion(db *gorm.DB, userID uint, activityID uint, dayStart time.Time) (bool, error) {
 	dayEnd := dayStart.Add(24 * time.Hour)
 
 	// 获取活动下所有必需栏目数量（通过项目关联，排除 optional = true 的特殊栏目）
 	var totalColumns int64
-	if err := database.DB.Table("`column`").
+	if err := db.Table("`column`").
 		Joins("JOIN project ON `column`.project_id = project.id").
 		Where("project.activity_id = ? AND `column`.deleted_at IS NULL AND project.deleted_at IS NULL AND `column`.optional = ?", activityID, false).
 		Count(&totalColumns).Error; err != nil {
@@ -303,7 +303,7 @@ func checkActivityCompletion(userID uint, activityID uint, dayStart time.Time) (
 
 	// 获取用户在指定日期已打卡且审核通过的必需栏目数量（去重，排除特殊栏目）
 	var punchedColumns int64
-	if err := database.DB.Table("punch").
+	if err := db.Table("punch").
 		Select("COUNT(DISTINCT punch.column_id)").
 		Joins("JOIN `column` ON punch.column_id = `column`.id").
 		Joins("JOIN project ON `column`.project_id = project.id").
@@ -318,11 +318,11 @@ func checkActivityCompletion(userID uint, activityID uint, dayStart time.Time) (
 
 // hasReceivedProjectCompletionBonus 检查用户在指定日期是否已领取过项目完成奖励
 // 使用 punch_date 字段判断，该字段记录的是打卡日期而非积分记录创建日期
-func hasReceivedProjectCompletionBonus(userID uint, projectID uint, dayStart time.Time) (bool, error) {
+func hasReceivedProjectCompletionBonus(db *gorm.DB, userID uint, projectID uint, dayStart time.Time) (bool, error) {
 	dayEnd := dayStart.Add(24 * time.Hour)
 	var count int64
 
-	err := database.DB.Model(&model.Score{}).
+	err := db.Model(&model.Score{}).
 		Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
 			userID, fmt.Sprintf("ProjectCompletionBonus#%d", projectID), dayStart, dayEnd).
 		Count(&count).Error
@@ -332,11 +332,11 @@ func hasReceivedProjectCompletionBonus(userID uint, projectID uint, dayStart tim
 
 // hasReceivedActivityCompletionBonus 检查用户在指定日期是否已领取过活动完成奖励
 // 使用 punch_date 字段判断，该字段记录的是打卡日期而非积分记录创建日期
-func hasReceivedActivityCompletionBonus(userID uint, activityID uint, dayStart time.Time) (bool, error) {
+func hasReceivedActivityCompletionBonus(db *gorm.DB, userID uint, activityID uint, dayStart time.Time) (bool, error) {
 	dayEnd := dayStart.Add(24 * time.Hour)
 	var count int64
 
-	err := database.DB.Model(&model.Score{}).
+	err := db.Model(&model.Score{}).
 		Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
 			userID, fmt.Sprintf("ActivityCompletionBonus#%d", activityID), dayStart, dayEnd).
 		Count(&count).Error
@@ -378,280 +378,306 @@ func ReviewPunch(c *gin.Context) {
 		return
 	}
 
-	// 查找打卡记录
-	var punch model.Punch
-	if err := database.DB.First(&punch, req.PunchID).Error; err != nil {
-		log.Warn("打卡记录不存在", "punch_id", req.PunchID)
-		response.Fail(c, response.ErrNotFound.WithTips("打卡记录不存在"))
-		return
-	}
-
-	// 记录原状态，用于判断是否需要扣分
-	originalStatus := punch.Status
-
-	// 更新审核状态
-	punch.Status = req.Status
-	if err := database.DB.Save(&punch).Error; err != nil {
-		log.Error("审核打卡记录失败", "error", err)
-		response.Fail(c, response.ErrDatabase.WithOrigin(err))
-		return
-	}
 	res := reviewRes{
 		PunchID:    req.PunchID,
 		Status:     req.Status,
 		AddedScore: 0,
 	}
-	//获取方式可优化(优化为前端传来
-	var projectID uint
-	database.DB.Table("column").Select("project_id").Where("id = ?", punch.ColumnID).Scan(&projectID)
+	reviewTxnErr := errors.New("review_txn_failed")
+	var reviewErrMsg string
 
-	// 如果从通过(1)改为驳回(2)或待审核(0)，自动扣除之前发放的所有积分
-	if originalStatus == 1 && req.Status != 1 {
-		req.ClearScore = true
-	}
+	err := database.DB.Transaction(func(txBase *gorm.DB) error {
+		// 查找打卡记录
+		var punch model.Punch
+		if err := txBase.First(&punch, req.PunchID).Error; err != nil {
+			return err
+		}
 
-	// 获取完整的项目信息（包含CompletionBonus和ExemptFromLimit）
-	var project model.Project
-	if err := database.DB.First(&project, projectID).Error; err != nil {
-		c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但打分失败 未找到所属的project", Data: res})
-		return
-	}
-	activityID := project.ActivityID
+		// 记录原状态，用于判断是否需要扣分
+		originalStatus := punch.Status
 
-	// 获取完整的活动信息（包含DailyPointLimit）
-	var activity model.Activity
-	if err := database.DB.First(&activity, activityID).Error; err != nil {
-		c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但打分失败 未找到所属的activity", Data: res})
-		return
-	}
+		// 更新审核状态
+		punch.Status = req.Status
+		if err := txBase.Save(&punch).Error; err != nil {
+			return err
+		}
 
-	tx := database.DB.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserActivity{
-		ActivityID: activityID,
-		UserID:     punch.UserID, // 使用打卡者的ID，而非审核者的ID
-	}))
+		// 获取方式可优化(优化为前端传来)
+		var projectID uint
+		if err := txBase.Table("column").Select("project_id").Where("id = ?", punch.ColumnID).Scan(&projectID).Error; err != nil {
+			return err
+		}
+		if projectID == 0 {
+			reviewErrMsg = "审核失败 未找到所属的project"
+			return reviewTxnErr
+		}
 
-	// 获取打卡当天的零点时间（基于打卡创建时间，而非审核时间）
-	punchDayStart := getDayStart(punch.CreatedAt)
+		// 如果从通过(1)改为驳回(2)或待审核(0)，自动扣除之前发放的所有积分
+		if originalStatus == 1 && req.Status != 1 {
+			req.ClearScore = true
+		}
 
-	// 辅助函数：检查每日积分上限并发放积分
-	awardScore := func(scoreToAward int, cause string) (bool, string) {
-		// 如果活动设置了每日积分上限，且该项目不豁免
-		if activity.DailyPointLimit > 0 && !project.ExemptFromLimit {
-			currentPoints, err := getDayPointsForActivity(punch.UserID, activityID, punchDayStart)
-			if err != nil {
-				return false, "检查每日积分上限失败"
+		// 获取完整的项目信息（包含CompletionBonus和ExemptFromLimit）
+		var project model.Project
+		if err := txBase.First(&project, projectID).Error; err != nil {
+			reviewErrMsg = "审核失败 未找到所属的project"
+			return reviewTxnErr
+		}
+		activityID := project.ActivityID
+
+		// 获取完整的活动信息（包含DailyPointLimit）
+		var activity model.Activity
+		if err := txBase.First(&activity, activityID).Error; err != nil {
+			reviewErrMsg = "审核失败 未找到所属的activity"
+			return reviewTxnErr
+		}
+
+		tx := txBase.WithContext(context.WithValue(context.Background(), "fk_user_activity", &model.FkUserActivity{
+			ActivityID: activityID,
+			UserID:     punch.UserID, // 使用打卡者的ID，而非审核者的ID
+		}))
+
+		// 获取打卡当天的零点时间（基于打卡创建时间，而非审核时间）
+		punchDayStart := getDayStart(punch.CreatedAt)
+
+		// 辅助函数：检查每日积分上限并发放积分
+		awardScore := func(scoreToAward int, cause string) (bool, string) {
+			// 如果活动设置了每日积分上限，且该项目不豁免
+			if activity.DailyPointLimit > 0 && !project.ExemptFromLimit {
+				currentPoints, err := getDayPointsForActivity(tx, punch.UserID, activityID, punchDayStart)
+				if err != nil {
+					return false, "检查每日积分上限失败"
+				}
+				if currentPoints >= activity.DailyPointLimit {
+					res.DailyLimitHit = true
+					return false, fmt.Sprintf("已达到每日积分上限(%d分)", activity.DailyPointLimit)
+				}
+				// 如果加上这次分数会超过上限，只给到上限
+				if currentPoints+uint(scoreToAward) > activity.DailyPointLimit {
+					scoreToAward = int(activity.DailyPointLimit - currentPoints)
+					res.DailyLimitHit = true
+				}
 			}
-			if currentPoints >= activity.DailyPointLimit {
-				res.DailyLimitHit = true
-				return false, fmt.Sprintf("已达到每日积分上限(%d分)", activity.DailyPointLimit)
+
+			score := model.Score{
+				UserID:    punch.UserID,
+				Count:     uint(scoreToAward),
+				Cause:     cause,
+				MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+				PunchID:   punch.ID,
+				ColumnID:  uint(punch.ColumnID),
+				PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
 			}
-			// 如果加上这次分数会超过上限，只给到上限
-			if currentPoints+uint(scoreToAward) > activity.DailyPointLimit {
-				scoreToAward = int(activity.DailyPointLimit - currentPoints)
-				res.DailyLimitHit = true
+			if err := tx.Create(&score).Error; err != nil {
+				return false, "插入打分记录失败"
 			}
+			res.AddedScore = scoreToAward
+			return true, ""
 		}
 
-		score := model.Score{
-			UserID:    punch.UserID,
-			Count:     uint(scoreToAward),
-			Cause:     cause,
-			MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
-			PunchID:   punch.ID,
-			ColumnID:  uint(punch.ColumnID),
-			PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
-		}
-		if err := tx.Create(&score).Error; err != nil {
-			return false, "插入打分记录失败"
-		}
-		res.AddedScore = scoreToAward
-		return true, ""
-	}
-
-	// 辅助函数：检查并发放项目完成奖励
-	checkAndAwardProjectBonus := func() {
-		if project.CompletionBonus == 0 {
-			return
-		}
-		// 检查是否完成了项目所有栏目（基于打卡当天）
-		complete, err := checkProjectCompletion(punch.UserID, projectID, punchDayStart)
-		if err != nil || !complete {
-			return
-		}
-		res.ProjectComplete = true
-
-		// 检查打卡当天是否已经领取过奖励
-		received, err := hasReceivedProjectCompletionBonus(punch.UserID, projectID, punchDayStart)
-		if err != nil || received {
-			return
-		}
-
-		// 发放项目完成奖励
-		bonusScore := model.Score{
-			UserID:    punch.UserID,
-			Count:     project.CompletionBonus,
-			Cause:     fmt.Sprintf("ProjectCompletionBonus#%d", projectID),
-			MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
-			PunchID:   punch.ID,
-			ColumnID:  uint(punch.ColumnID),
-			PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
-		}
-		if err := tx.Create(&bonusScore).Error; err != nil {
-			log.Warn("发放项目完成奖励失败", "err", err.Error())
-			return
-		}
-		res.ProjectBonus = int(project.CompletionBonus)
-	}
-
-	// 辅助函数：检查并发放活动完成奖励
-	checkAndAwardActivityBonus := func() {
-		if activity.CompletionBonus == 0 {
-			return
-		}
-		// 检查是否完成了活动所有栏目（基于打卡当天）
-		complete, err := checkActivityCompletion(punch.UserID, activityID, punchDayStart)
-		if err != nil || !complete {
-			return
-		}
-		res.ActivityComplete = true
-
-		// 检查打卡当天是否已经领取过奖励
-		received, err := hasReceivedActivityCompletionBonus(punch.UserID, activityID, punchDayStart)
-		if err != nil || received {
-			return
-		}
-
-		// 发放活动完成奖励
-		bonusScore := model.Score{
-			UserID:    punch.UserID,
-			Count:     activity.CompletionBonus,
-			Cause:     fmt.Sprintf("ActivityCompletionBonus#%d", activityID),
-			MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
-			PunchID:   punch.ID,
-			ColumnID:  uint(punch.ColumnID),
-			PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
-		}
-		if err := tx.Create(&bonusScore).Error; err != nil {
-			log.Warn("发放活动完成奖励失败", "err", err.Error())
-			return
-		}
-		res.ActivityBonus = int(activity.CompletionBonus)
-	}
-
-	// 大粪！通过才考虑打分
-	if req.Status == 1 {
-
-		if req.Special {
-			if req.Score <= 0 {
-				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败 分数不能小于1", Data: res})
+		// 辅助函数：检查并发放项目完成奖励
+		checkAndAwardProjectBonus := func() {
+			if project.CompletionBonus == 0 {
 				return
 			}
-			if req.Cause == "Auto" {
-				req.Cause += "#并非自动打分"
+			// 检查是否完成了项目所有栏目（基于打卡当天）
+			complete, err := checkProjectCompletion(tx, punch.UserID, projectID, punchDayStart)
+			if err != nil || !complete {
+				return
 			}
+			res.ProjectComplete = true
 
-			ok, errMsg := awardScore(req.Score, req.Cause)
-			if !ok {
-				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自定义打分失败: " + errMsg, Data: res})
+			// 检查打卡当天是否已经领取过奖励
+			received, err := hasReceivedProjectCompletionBonus(tx, punch.UserID, projectID, punchDayStart)
+			if err != nil || received {
 				return
 			}
 
-			// 检查并发放项目完成奖励
-			checkAndAwardProjectBonus()
-			// 检查并发放活动完成奖励
-			checkAndAwardActivityBonus()
-
-		} else {
-			//自动打分
-			//不可重复
-			exist := false
-			if err := database.DB.
-				Raw("SELECT EXISTS(SELECT 1 FROM score WHERE user_id = ? AND punch_id = ? AND deleted_at IS NULL)",
-					userPayload.ID, punch.ID).
-				Scan(&exist).Error; err != nil {
-				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分查重时失败", Data: res})
+			// 发放项目完成奖励
+			bonusScore := model.Score{
+				UserID:    punch.UserID,
+				Count:     project.CompletionBonus,
+				Cause:     fmt.Sprintf("ProjectCompletionBonus#%d", projectID),
+				MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+				PunchID:   punch.ID,
+				ColumnID:  uint(punch.ColumnID),
+				PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
+			}
+			if err := tx.Create(&bonusScore).Error; err != nil {
+				log.Warn("发放项目完成奖励失败", "err", err.Error())
 				return
 			}
-			if exist {
-				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 自动打分失败,因为此前已经打过分,若需要加分,尝试special=true", Data: res})
-				return
-			}
-			if err := tx.Table("column").Select("point_earned").Where("id = ?", punch.ColumnID).Scan(&(req.Score)).Error; err != nil {
-				log.Warn("数据库 自动打分时获取column设置的分数时失败", "err", err.Error())
-				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败", Data: res})
-				return
-			}
-
-			ok, errMsg := awardScore(req.Score, "Auto")
-			if !ok {
-				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但自动打分失败: " + errMsg, Data: res})
-				return
-			}
-
-			// 检查并发放项目完成奖励
-			checkAndAwardProjectBonus()
-			// 检查并发放活动完成奖励
-			checkAndAwardActivityBonus()
+			res.ProjectBonus = int(project.CompletionBonus)
 		}
-	} else if req.ClearScore && req.Status != 1 { // 扣分：从通过改为驳回或待审核时
-		var scores []model.Score
-		if err := tx.Where("user_id = ? AND punch_id = ?", punch.UserID, punch.ID).Find(&scores).Error; err != nil {
-			log.Warn("数据库 扣分时获取score记录失败", "err", err.Error())
-			c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但扣分失败", Data: res})
-			return
-		}
-		for _, s := range scores {
-			if err := tx.Delete(&s).Error; err != nil {
-				log.Warn("数据库 扣分时删除score记录发生错误!", "err", err.Error())
-				c.JSON(206, response.ResponseBody{Code: 206, Msg: "已审核 但扣分未完全完成", Data: res})
+
+		// 辅助函数：检查并发放活动完成奖励
+		checkAndAwardActivityBonus := func() {
+			if activity.CompletionBonus == 0 {
 				return
 			}
-			res.AddedScore -= int(s.Count)
-		}
-		log.Info("扣分完成", "punch_id", punch.ID, "user_id", punch.UserID, "deducted_score", -res.AddedScore)
+			// 检查是否完成了活动所有栏目（基于打卡当天）
+			complete, err := checkActivityCompletion(tx, punch.UserID, activityID, punchDayStart)
+			if err != nil || !complete {
+				return
+			}
+			res.ActivityComplete = true
 
-		// 检查驳回后是否仍满足项目完成条件，如果不满足则撤销奖励
-		if project.CompletionBonus > 0 {
-			complete, err := checkProjectCompletion(punch.UserID, projectID, punchDayStart)
-			if err == nil && !complete {
-				// 不再满足条件，删除该打卡日期的项目完成奖励（如果存在）
-				var bonusScore model.Score
-				punchDayEnd := punchDayStart.Add(24 * time.Hour)
-				if err := tx.Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
-					punch.UserID, fmt.Sprintf("ProjectCompletionBonus#%d", projectID), punchDayStart, punchDayEnd).
-					First(&bonusScore).Error; err == nil {
-					if err := tx.Delete(&bonusScore).Error; err != nil {
-						log.Warn("撤销项目完成奖励失败", "err", err.Error())
-					} else {
-						res.AddedScore -= int(bonusScore.Count)
-						res.ProjectBonus = -int(bonusScore.Count)
-						log.Info("撤销项目完成奖励", "punch_id", punch.ID, "user_id", punch.UserID, "bonus", bonusScore.Count)
+			// 检查打卡当天是否已经领取过奖励
+			received, err := hasReceivedActivityCompletionBonus(tx, punch.UserID, activityID, punchDayStart)
+			if err != nil || received {
+				return
+			}
+
+			// 发放活动完成奖励
+			bonusScore := model.Score{
+				UserID:    punch.UserID,
+				Count:     activity.CompletionBonus,
+				Cause:     fmt.Sprintf("ActivityCompletionBonus#%d", activityID),
+				MarkedBy:  fmt.Sprintf("%s#%d", req.MarkedBy, userPayload.ID),
+				PunchID:   punch.ID,
+				ColumnID:  uint(punch.ColumnID),
+				PunchDate: punchDayStart, // 记录打卡日期，用于判断每日奖励是否已领取
+			}
+			if err := tx.Create(&bonusScore).Error; err != nil {
+				log.Warn("发放活动完成奖励失败", "err", err.Error())
+				return
+			}
+			res.ActivityBonus = int(activity.CompletionBonus)
+		}
+
+		// 通过才考虑打分
+		if req.Status == 1 {
+			if req.Special {
+				if req.Score <= 0 {
+					reviewErrMsg = "审核失败 自定义打分失败 分数不能小于1"
+					return reviewTxnErr
+				}
+				if req.Cause == "Auto" {
+					req.Cause += "#并非自动打分"
+				}
+
+				ok, errMsg := awardScore(req.Score, req.Cause)
+				if !ok {
+					reviewErrMsg = "审核失败 自定义打分失败: " + errMsg
+					return reviewTxnErr
+				}
+
+				// 检查并发放项目完成奖励
+				checkAndAwardProjectBonus()
+				// 检查并发放活动完成奖励
+				checkAndAwardActivityBonus()
+
+			} else {
+				// 自动打分，不可重复
+				exist := false
+				if err := tx.
+					Raw("SELECT EXISTS(SELECT 1 FROM score WHERE punch_id = ? AND deleted_at IS NULL)",
+						punch.ID).
+					Scan(&exist).Error; err != nil {
+					reviewErrMsg = "审核失败 自动打分查重时失败"
+					return reviewTxnErr
+				}
+				if exist {
+					reviewErrMsg = "审核失败 自动打分失败,因为此前已经打过分,若需要加分,尝试special=true"
+					return reviewTxnErr
+				}
+				if err := tx.Table("column").Select("point_earned").Where("id = ?", punch.ColumnID).Scan(&(req.Score)).Error; err != nil {
+					log.Warn("数据库 自动打分时获取column设置的分数时失败", "err", err.Error())
+					reviewErrMsg = "审核失败 自动打分失败"
+					return reviewTxnErr
+				}
+
+				ok, errMsg := awardScore(req.Score, "Auto")
+				if !ok {
+					reviewErrMsg = "审核失败 自动打分失败: " + errMsg
+					return reviewTxnErr
+				}
+
+				// 检查并发放项目完成奖励
+				checkAndAwardProjectBonus()
+				// 检查并发放活动完成奖励
+				checkAndAwardActivityBonus()
+			}
+		} else if req.ClearScore && req.Status != 1 { // 扣分：从通过改为驳回或待审核时
+			var scores []model.Score
+			if err := tx.Where("user_id = ? AND punch_id = ?", punch.UserID, punch.ID).Find(&scores).Error; err != nil {
+				log.Warn("数据库 扣分时获取score记录失败", "err", err.Error())
+				reviewErrMsg = "审核失败 扣分失败"
+				return reviewTxnErr
+			}
+			for _, s := range scores {
+				if err := tx.Delete(&s).Error; err != nil {
+					log.Warn("数据库 扣分时删除score记录发生错误!", "err", err.Error())
+					reviewErrMsg = "审核失败 扣分未完全完成"
+					return reviewTxnErr
+				}
+				res.AddedScore -= int(s.Count)
+			}
+			log.Info("扣分完成", "punch_id", punch.ID, "user_id", punch.UserID, "deducted_score", -res.AddedScore)
+
+			// 检查驳回后是否仍满足项目完成条件，如果不满足则撤销奖励
+			if project.CompletionBonus > 0 {
+				complete, err := checkProjectCompletion(tx, punch.UserID, projectID, punchDayStart)
+				if err == nil && !complete {
+					// 不再满足条件，删除该打卡日期的项目完成奖励（如果存在）
+					var bonusScore model.Score
+					punchDayEnd := punchDayStart.Add(24 * time.Hour)
+					if err := tx.Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
+						punch.UserID, fmt.Sprintf("ProjectCompletionBonus#%d", projectID), punchDayStart, punchDayEnd).
+						First(&bonusScore).Error; err == nil {
+						if err := tx.Delete(&bonusScore).Error; err != nil {
+							log.Warn("撤销项目完成奖励失败", "err", err.Error())
+						} else {
+							res.AddedScore -= int(bonusScore.Count)
+							res.ProjectBonus = -int(bonusScore.Count)
+							log.Info("撤销项目完成奖励", "punch_id", punch.ID, "user_id", punch.UserID, "bonus", bonusScore.Count)
+						}
+					}
+				}
+			}
+
+			// 检查驳回后是否仍满足活动完成条件，如果不满足则撤销奖励
+			if activity.CompletionBonus > 0 {
+				complete, err := checkActivityCompletion(tx, punch.UserID, activityID, punchDayStart)
+				if err == nil && !complete {
+					// 不再满足条件，删除该打卡日期的活动完成奖励（如果存在）
+					var bonusScore model.Score
+					punchDayEnd := punchDayStart.Add(24 * time.Hour)
+					if err := tx.Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
+						punch.UserID, fmt.Sprintf("ActivityCompletionBonus#%d", activityID), punchDayStart, punchDayEnd).
+						First(&bonusScore).Error; err == nil {
+						if err := tx.Delete(&bonusScore).Error; err != nil {
+							log.Warn("撤销活动完成奖励失败", "err", err.Error())
+						} else {
+							res.AddedScore -= int(bonusScore.Count)
+							res.ActivityBonus = -int(bonusScore.Count)
+							log.Info("撤销活动完成奖励", "punch_id", punch.ID, "user_id", punch.UserID, "bonus", bonusScore.Count)
+						}
 					}
 				}
 			}
 		}
 
-		// 检查驳回后是否仍满足活动完成条件，如果不满足则撤销奖励
-		if activity.CompletionBonus > 0 {
-			complete, err := checkActivityCompletion(punch.UserID, activityID, punchDayStart)
-			if err == nil && !complete {
-				// 不再满足条件，删除该打卡日期的活动完成奖励（如果存在）
-				var bonusScore model.Score
-				punchDayEnd := punchDayStart.Add(24 * time.Hour)
-				if err := tx.Where("user_id = ? AND cause = ? AND punch_date >= ? AND punch_date < ? AND deleted_at IS NULL",
-					punch.UserID, fmt.Sprintf("ActivityCompletionBonus#%d", activityID), punchDayStart, punchDayEnd).
-					First(&bonusScore).Error; err == nil {
-					if err := tx.Delete(&bonusScore).Error; err != nil {
-						log.Warn("撤销活动完成奖励失败", "err", err.Error())
-					} else {
-						res.AddedScore -= int(bonusScore.Count)
-						res.ActivityBonus = -int(bonusScore.Count)
-						log.Info("撤销活动完成奖励", "punch_id", punch.ID, "user_id", punch.UserID, "bonus", bonusScore.Count)
-					}
-				}
-			}
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("打卡记录不存在", "punch_id", req.PunchID)
+			response.Fail(c, response.ErrNotFound.WithTips("打卡记录不存在"))
+			return
 		}
+		if errors.Is(err, reviewTxnErr) {
+			if reviewErrMsg == "" {
+				reviewErrMsg = "审核失败"
+			}
+			c.JSON(206, response.ResponseBody{Code: 206, Msg: reviewErrMsg, Data: res})
+			return
+		}
+		log.Error("审核打卡事务失败", "error", err)
+		response.Fail(c, response.ErrDatabase.WithOrigin(err))
+		return
 	}
+
 	response.Success(c, res)
 }
 
