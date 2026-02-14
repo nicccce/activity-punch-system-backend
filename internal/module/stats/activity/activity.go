@@ -6,7 +6,6 @@ import (
 	"activity-punch-system/internal/global/jwt"
 	"activity-punch-system/internal/global/response"
 	"activity-punch-system/internal/model"
-	"activity-punch-system/internal/module/stats/tree"
 	"activity-punch-system/tools"
 	"bytes"
 	"errors"
@@ -144,9 +143,19 @@ func Detail(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
+	var total int64
 	var result []model.Score
-	if err := database.DB.Model(&model.Score{}).Preload("Punch").Preload("Column").Preload("Column.Project").
-		Where("deleted_at IS NULL AND column_id in (?) AND user_id = ?", columnIDs, user.ID).
+	wrapper := database.DB.Model(&model.Score{}).Where("deleted_at IS NULL AND column_id in (?) AND user_id = ?", columnIDs, user.ID)
+	if err := wrapper.Count(&total).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, response.ErrNotFound)
+			return
+		}
+		Log.Error("数据库 查询 score 表错误", "error", err.Error())
+		response.Fail(c, response.ErrDatabase)
+		return
+	}
+	if err := wrapper.Preload("Punch").Preload("Column").Preload("Column.Project").
 		Order("created_at DESC").
 		Offset(offset).Limit(limit).Find(&result).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -157,7 +166,11 @@ func Detail(c *gin.Context) {
 		response.Fail(c, response.ErrDatabase)
 		return
 	}
-	response.Success(c, result)
+	response.Success(c, gin.H{
+		"total":  total,
+		"count":  len(result),
+		"scores": result,
+	})
 }
 
 // Brief 获取某活动的今日()已经打卡人数,
@@ -337,20 +350,6 @@ func Export(c *gin.Context) {
 
 }
 
-func ExportMyStats2Json(c *gin.Context) {
-	user, ok := jwt.GetUserPayload(c)
-	if !ok {
-		response.Fail(c, response.ErrUnauthorized)
-		return
-	}
-	askTime := tools.GetTime(c)
-	a, ok := activityIdValidator(c)
-	if !ok {
-		return
-	}
-	response.Success(c, tree.Unfold3[Activity, Project, Column](&Activity{*a}, user.Id, 0, askTime))
-}
-
 func activityIdValidator(c *gin.Context) (*model.Activity, bool) {
 	activityId := c.Param("id")
 	if activityId == "" {
@@ -378,49 +377,3 @@ func activityIdValidator(c *gin.Context) (*model.Activity, bool) {
 type Activity struct{ model.Activity }
 type Project struct{ model.Project }
 type Column struct{ model.Column }
-
-func (a Activity) GetId() uint {
-	return a.ID
-}
-func (a Activity) GetName() string {
-	return a.Name
-}
-func (a Activity) NextLayer() []tree.Record {
-	var ps []Project
-	database.DB.Model(&model.Project{}).
-		Where("activity_id = ? AND deleted_at IS NULL", a.GetId()).Find(&ps)
-	return tree.ToRecordSlice(ps)
-}
-
-func (p Project) GetId() uint {
-	return p.ID
-}
-func (p Project) GetName() string {
-	return p.Name
-}
-func (p Project) NextLayer() []tree.Record {
-	var cs []Column
-	database.DB.Model(&model.Column{}).
-		Where("project_id = ? AND deleted_at IS NULL", p.GetId()).Find(&cs)
-	return tree.ToRecordSlice(cs)
-}
-func (c Column) GetId() uint {
-	return c.ID
-}
-
-func (c Column) GetName() string {
-	return c.Name
-}
-
-func (c Column) NextLayer() []tree.Record {
-	return nil
-}
-func (c Column) GetScore(userId string, startTime, endTime int64) float64 {
-	var rs []tools.Punch
-	//todo
-	var sum = 0.0
-	for _, r := range rs {
-		sum += r.Score
-	}
-	return sum
-}
