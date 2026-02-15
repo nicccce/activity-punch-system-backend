@@ -20,7 +20,13 @@ type FkUserActivity struct {
 
 // RefreshTo 仅仅是更新连续天数
 func (c *Continuity) RefreshTo(toTime time.Time) {
-	day := toTime.Unix() / (24 * 60 * 6)
+	// 使用北京时区计算"天"
+	loc := time.FixedZone("CST", 8*60*60)
+	t := toTime.In(loc)
+	// 计算北京时间零点的 Unix 时间戳对应的天数
+	dayStart := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
+	day := dayStart.Unix() / (24 * 60 * 60)
+
 	if day-c.EndAt >= 1 {
 		c.Total++
 		if day-c.EndAt == 1 {
