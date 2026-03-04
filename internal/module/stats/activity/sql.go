@@ -137,3 +137,16 @@ func briefStats(activityID, userID uint, columnIDs []uint, askTime int64, result
 	result.TodayPuncherCount = todayPuncherCount
 	return nil
 }
+func isReviewNotOver(activityID uint) (is bool, err error) {
+	if err = database.DB.Raw(` SELECT  EXISTS (
+        SELECT 1
+        FROM project p
+        JOIN  `+"`column`"+` c ON c.project_id = p.id
+        JOIN punch pu ON pu.column_id = c.id
+        WHERE p.activity_id = ?
+          AND pu.status = 0)`, activityID).Scan(&is).Error; err != nil {
+		return false, err
+	}
+	return
+
+}

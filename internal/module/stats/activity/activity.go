@@ -158,10 +158,7 @@ func Detail(c *gin.Context) {
 	if err := wrapper.Preload("Punch").Preload("Column").Preload("Column.Project").
 		Order("created_at DESC").
 		Offset(offset).Limit(limit).Find(&result).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, response.ErrNotFound)
-			return
-		}
+
 		Log.Error("数据库 查询 score 表错误", "error", err.Error())
 		response.Fail(c, response.ErrDatabase)
 		return
@@ -224,8 +221,28 @@ func RankExport(c *gin.Context) {
 		})
 		return
 	}
-	filename := filepath.Join(config.Get().Storage.Home, "stats", "activity", fmt.Sprintf("activity%d_ranks.xlsx", a.ID))
+
+	dateStr := currentTime.Format("20060102")
+	filename := filepath.Join(
+		config.Get().Storage.Home,
+		"stats",
+		"activity",
+		fmt.Sprintf("activity%d_%s_ranks.xlsx", a.ID, dateStr),
+	)
 	if !tools.FileExist(filename) {
+		is, err := isReviewNotOver(a.ID)
+		if err != nil {
+			Log.Error("数据库 查询 activity-project-column-punch 表错误", "error", err.Error())
+			response.Fail(c, response.ErrDatabase)
+			return
+		}
+		if is {
+			response.Fail(c, &response.Error{
+				Code:    403,
+				Message: "活动打卡记录尚未审核结束，无法导出排名",
+			})
+			return
+		}
 		dir := filepath.Dir(filename)
 
 		if err := os.MkdirAll(dir, 0755); err != nil {
